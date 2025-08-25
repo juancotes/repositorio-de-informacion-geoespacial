@@ -1,541 +1,431 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Repositorio de información geoespacial relevante para asuntos ambientales</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Repositorio de información geoespacial – Gobernanza ambiental</title>
+  <!-- Dependencias: PapaParse (CSV) y Fuse.js (búsqueda difusa) -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+  <style>
+    :root{
+      --bg: #06150f;          /* fondo muy oscuro verdoso */
+      --panel: #0b2018;       /* paneles */
+      --muted: #94a3b8;       /* texto atenuado */
+      --text: #e6f4ef;        /* texto principal */
+      --accent: #0a784f;      /* verde principal */
+      --accent-ink:#0a5e41;   /* verde tinta */
+      --chip:#103524;         /* chips */
+      --border:#153c2a;       /* bordes suaves */
+      --warn:#eab308;         /* aviso */
+      --err:#ef4444;          /* error */
+    }
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
+      display:flex; flex-direction:column; min-height:100vh;
+    }
+    header{
+      background: linear-gradient(180deg, rgba(10,120,79,0.25), rgba(10,120,79,0));
+      border-bottom:1px solid var(--border);
+    }
+    .wrap{ max-width:1100px; margin:0 auto; padding: 16px; }
+    .header-inner{ display:flex; align-items:center; gap:16px; }
+    .logo{
+      width:44px; height:44px; border-radius:10px; background:#123a29; border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
+      overflow:hidden;
+    }
+    .logo img{ width:100%; height:100%; object-fit:cover; display:block; }
+    h1{ font-size: clamp(18px, 4vw, 24px); margin:0; font-weight:700; letter-spacing:0.2px; }
+    .tagline{ color:var(--muted); font-size:14px; margin-top:4px }
 
-<!-- Puedes usar estas CDNs (como pediste) -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    main{ flex:1; }
+    .hero{
+      display:grid; place-items:center; padding: 40px 16px 8px;
+    }
+    .search-card{
+      width:min(920px, 100%); background:var(--panel); border:1px solid var(--border); border-radius:18px; box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      padding: 22px; position:relative;
+    }
+    .search-row{ display:flex; gap:10px; align-items:center; }
+    .search-row input[type="search"]{
+      flex:1; background:#05120c; border:1px solid var(--border); color:var(--text);
+      padding:14px 16px; border-radius:12px; outline:none; font-size:16px;
+    }
+    .search-row button{
+      background:var(--accent); color:#fff; border:none; padding:14px 18px; border-radius:12px; font-weight:600; cursor:pointer;
+    }
+    .search-row button:disabled{ opacity:0.6; cursor:not-allowed }
 
-<style>
-:root{ 
-  /* Paleta en verdes (tu paleta) */
-  --bg:#06150f;            /* fondo general muy oscuro con tinte verde */
-  --panel:#0b2018;         /* panel */
-  --muted:#93b5a1;         /* texto atenuado */
-  --text:#eaf6f0;          /* texto principal */
-  --accent:#0a784f;        /* botón principal */
-  --accent-ink:#072f21;    /* texto sobre acento */
-  --accent-2:#0a5e41;      /* acento secundario (borde/tabs) */
-  --ok:#10b981;            /* verde ok */
-  --warn:#f59e0b;          /* ámbar */
-  --bad:#ef4444;           /* rojo */
-  --tab:#0d2019; 
-  --tabActive:#123227;
-}
+    .helper{ color:var(--muted); font-size:13px; margin-top:8px; line-height:1.4 }
+    .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px }
+    .chip{ background:var(--chip); border:1px solid var(--border); padding:6px 10px; border-radius:999px; font-size:12px; color:#cfe9df }
 
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
-a{color:#7ee2b8}
+    .filters{
+      width:min(920px, 100%); margin:12px auto 0; display:grid; grid-template-columns: repeat(12, 1fr); gap:10px; padding: 0 2px;
+    }
+    .filter{ grid-column: span 6; }
+    @media (min-width: 860px){ .filter{ grid-column: span 3; } }
+    select, .check{ width:100%; background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:12px; padding:12px; font-size:14px }
+    label.check{ display:flex; align-items:center; gap:10px; padding:11px 12px; cursor:pointer }
+    label.check input{ width:18px; height:18px }
 
-header{
-  position:sticky;top:0;z-index:30;
-  display:flex;align-items:center;gap:14px;
-  padding:14px 18px;background:linear-gradient(180deg, #0b2018, #0b2018e6 70%, #0b201800);
-  border-bottom:1px solid var(--accent-2)
-}
-header img{height:48px;width:auto;border-radius:10px;background:#0002;object-fit:contain}
-header h1{margin:0;font-size:20px}
-header p{margin:0;color:var(--muted);font-size:13px}
+    .bar{ width:min(920px, 100%); margin: 14px auto; display:flex; align-items:center; justify-content:space-between; gap:10px; color:var(--muted) }
+    .bar .count{ font-size:14px }
+    .bar .sort{ display:flex; align-items:center; gap:8px }
 
-.container{max-width:1200px;margin:20px auto;padding:0 16px}
+    .results{ width:min(920px, 100%); margin: 8px auto 34px; display:grid; gap:10px }
+    .card{ background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:16px }
+    .card h3{ margin:0 0 6px 0; font-size:18px }
+    .meta{ display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 10px 0 }
+    .badge{ background:#082319; border:1px solid var(--border); color:#c5efdf; padding:5px 8px; border-radius:999px; font-size:12px }
+    .desc{ color:#d9efe7; opacity:0.88; font-size:14px; line-height:1.4; white-space:pre-line }
+    .links{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px }
+    .btn{ background:transparent; border:1px solid var(--border); color:#d7eee6; padding:8px 10px; border-radius:10px; font-size:13px; text-decoration:none }
+    .btn.primary{ background:var(--accent-ink); color:white; border-color:transparent }
+    .btn:hover{ filter:brightness(1.05) }
 
-.toolbar{
-  display:grid;grid-template-columns:1fr auto auto auto;gap:10px;
-  background:var(--panel);border:1px solid var(--accent-2);border-radius:14px;padding:10px
-}
-.search{
-  display:flex;align-items:center;gap:8px;background:var(--tab);border:1px solid var(--accent-2);border-radius:10px;padding:8px 10px
-}
-.search input{flex:1;background:transparent;border:none;outline:none;color:var(--text)}
-.btn{background:var(--accent);color:var(--text);border:1px solid var(--accent-2);padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:600}
-.btn.secondary{background:var(--tab)}
-.btn:disabled{opacity:.6;cursor:not-allowed}
+    .error{ background:#230b0b; border:1px solid #501c1c; color:#ffdddd; padding:12px 14px; border-radius:12px; margin: 10px auto; width:min(920px, 100%) }
 
-.filters{
-  display:flex;flex-wrap:wrap;gap:8px;margin:12px 2px
-}
-.chip{
-  background:var(--tab);border:1px solid var(--accent-2);color:var(--text);
-  padding:6px 10px;border-radius:999px;font-size:13px;cursor:pointer
-}
-.chip.active{background:var(--accent);color:var(--text)}
-
-.meta{display:flex;justify-content:space-between;align-items:center;margin:12px 2px;color:var(--muted);font-size:14px}
-
-.view-tabs{
-  display:flex;gap:6px;background:var(--panel);border:1px solid var(--accent-2);border-radius:12px;padding:6px;width:max-content
-}
-.view-tabs button{
-  background:var(--tab);color:var(--text);border:1px solid var(--accent-2);
-  padding:6px 10px;border-radius:8px;cursor:pointer
-}
-.view-tabs button.active{background:var(--accent)}
-
-.grid-cards{
-  display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
-  gap:12px;margin-top:10px
-}
-.card{
-  background:var(--panel);border:1px solid var(--accent-2);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px
-}
-.card h3{margin:0;font-size:16px}
-.card .desc{color:var(--muted);font-size:14px}
-.tags{display:flex;flex-wrap:wrap;gap:6px}
-.tag{background:#0c2a22;border:1px solid #1d4d3d;padding:3px 8px;border-radius:999px;font-size:12px;color:#c9ffe8}
-.card .actions{display:flex;gap:8px;margin-top:4px}
-.card .actions a{flex:1;text-align:center;text-decoration:none}
-
-.table-wrap{
-  overflow:auto;background:var(--panel);border:1px solid var(--accent-2);border-radius:12px;margin-top:10px
-}
-table{width:100%;border-collapse:separate;border-spacing:0;min-width:900px}
-thead th{position:sticky;top:0;background:var(--tabActive);padding:10px 12px;border-bottom:1px solid var(--accent-2);text-align:left}
-tbody td{padding:10px 12px;border-bottom:1px solid #0a2a21;vertical-align:top}
-tbody tr:nth-child(even){background:#0a1d17}
-a.link{color:#7ee2b8;text-decoration:underline;word-break:break-all}
-
-.highlight{background:#065f46;padding:0 .2em;border-radius:4px}
-
-.pagination{display:flex;gap:8px;justify-content:flex-end;margin:12px 2px}
-
-.status{margin-top:10px;color:var(--warn)}
-.error{color:var(--bad)}
-
-.card-analytics{margin-top:16px;background:var(--panel);border:1px solid var(--accent-2);border-radius:12px;padding:12px}
-.card-analytics h3{margin:0 0 8px 0;font-size:16px}
-
-.dropzone{
-  display:none;margin-top:12px;padding:16px;border:2px dashed #1f5b47;border-radius:12px;background:#0a1d17;color:var(--muted)
-}
-.dropzone.show{display:block}
-.dropzone strong{color:#a7f3d0}
-</style>
+    footer{ border-top:1px solid var(--border); color:var(--muted); padding:18px 16px; }
+  </style>
 </head>
 <body>
-<header>
-  <img src="./logo.png" alt="Logo" onerror="this.style.display='none'">
-  <div>
-    <h1>Repositorio de información geoespacial relevante para asuntos ambientales</h1>
-    <p>Buscador dinámico – Fuente viva desde Google Sheets (CSV publicado)</p>
-  </div>
-</header>
-
-<div class="container">
-
-  <div class="toolbar">
-    <div class="search">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 21l-3.6-3.6M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="#7ee2b8" stroke-width="2" stroke-linecap="round"/></svg>
-      <input id="q" type="search" placeholder="Buscar por título, descripción, entidad, palabras clave… (Enter para aplicar)">
-      <button class="btn secondary" id="clearBtn">Limpiar</button>
+  <header>
+    <div class="wrap header-inner">
+      <div class="logo" title="Logo (cárgalo como ./logo.png en el repo)">
+        <!-- Espacio para logo institucional -->
+        <img id="app-logo" src="./logo.png" alt="Logo" onerror="this.style.display='none'"/>
+      </div>
+      <div>
+        <h1>Repositorio geoespacial para la gobernanza ambiental</h1>
+        <div class="tagline">Busca, filtra y abre conjuntos de datos relevantes para monitoreo, análisis y gestión.</div>
+      </div>
     </div>
-    <div class="view-tabs" role="tablist" aria-label="Cambiar vista">
-      <button id="tabCards" class="active" aria-selected="true">Tarjetas</button>
-      <button id="tabTable" aria-selected="false">Tabla</button>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="search-card">
+        <div class="search-row">
+          <input id="q" type="search" placeholder="Buscar por título, descripción, categoría, origen… p. ej. ‘bosque’ o ‘IGAC’" aria-label="Buscar" />
+          <button id="go">Buscar</button>
+        </div>
+        <div class="helper">
+          Consejo: puedes usar filtros en la consulta, por ejemplo <code>categoria:bosque</code>, <code>origen:igac</code>, <code>rest:si</code>.
+        </div>
+        <div class="chips" id="chips"></div>
+      </div>
+    </section>
+
+    <section class="filters">
+      <div class="filter">
+        <select id="f-categoria">
+          <option value="">Categoría — todas</option>
+        </select>
+      </div>
+      <div class="filter">
+        <select id="f-origen">
+          <option value="">Origen — todos</option>
+        </select>
+      </div>
+      <div class="filter">
+        <label class="check"><input type="checkbox" id="f-rest"> Tiene servicio REST</label>
+      </div>
+      <div class="filter">
+        <label class="check"><input type="checkbox" id="f-secundario"> Con acceso secundario</label>
+      </div>
+      <div class="filter">
+        <label class="check"><input type="checkbox" id="f-respaldo"> Con acceso de respaldo</label>
+      </div>
+    </section>
+
+    <div class="bar">
+      <div class="count" id="count">Cargando…</div>
+      <div class="sort">
+        Ordenar:
+        <select id="sort">
+          <option value="relevance">Por relevancia</option>
+          <option value="titulo">A–Z por título</option>
+          <option value="categoria">Por categoría</option>
+        </select>
+      </div>
     </div>
-    <select id="rows">
-      <option value="12" selected>12 por página</option>
-      <option value="24">24 por página</option>
-      <option value="50">50 por página</option>
-      <option value="100">100 por página</option>
-    </select>
-    <button class="btn" id="reloadBtn">Recargar</button>
-  </div>
 
-  <div class="filters" id="filters"></div>
+    <div id="error" class="error" style="display:none">Error al cargar los datos.</div>
+    <section id="results" class="results"></section>
+  </main>
 
-  <div class="meta">
-    <div>
-      <span id="count">Cargando…</span>
-      <span id="updated"></span>
+  <footer>
+    <div class="wrap">
+      <div style="font-size:13px">Este sitio usa un CSV alojado en GitHub/Google Sheets. Actualiza el archivo para refrescar el catálogo.</div>
     </div>
-    <div>
-      <button class="btn secondary" id="downloadBtn">Descargar CSV</button>
-    </div>
-  </div>
-
-  <!-- Vista tarjetas -->
-  <div id="cardsView" class="grid-cards" hidden></div>
-
-  <!-- Vista tabla -->
-  <div id="tableView" class="table-wrap" hidden>
-    <table>
-      <thead id="thead"></thead>
-      <tbody id="tbody"></tbody>
-    </table>
-  </div>
-
-  <div class="pagination">
-    <button class="btn secondary" id="prevBtn">◀ Anterior</button>
-    <span id="pageInfo" style="color:var(--muted)"></span>
-    <button class="btn secondary" id="nextBtn">Siguiente ▶</button>
-  </div>
-
-  <!-- Analytics (opcional) -->
-  <div class="card-analytics" id="analytics" hidden>
-    <h3>Resumen por categoría</h3>
-    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
-      <label for="groupBy">Agrupar por:</label>
-      <select id="groupBy"></select>
-    </div>
-    <canvas id="summaryChart" height="230"></canvas>
-  </div>
-
-  <!-- Fallback si el CSV remoto falla -->
-  <div id="drop" class="dropzone">
-    <strong>¿Problemas cargando desde Google Sheets?</strong><br>
-    Arrastra aquí un archivo <em>.csv</em> con la misma estructura, o 
-    <label style="text-decoration:underline;cursor:pointer">
-      selecciónalo
-      <input id="fileInput" type="file" accept=".csv" style="display:none">
-    </label>.
-  </div>
-
-  <div class="status" id="status"></div>
-</div>
+  </footer>
 
 <script>
-(() => {
-  // === Configuración ===
-  const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQUY-fMuoM5GRNKquHW1kfwvVmdJTDrDlgNiIeyHppkFrcm_nJuKbgbySJSQc2e2Z-r4JFtheJMmYze/pub?gid=0&single=true&output=csv";
+// === Configuración ===
+const DATA_URL = 'https://docs.google.com/spreadsheets/d/1Smop4rx0K4pj5sHXD19DE3iqcwTCyqn9ohPxIuJsZ8s/export?format=csv&gid=0';
+// Si prefieres un CSV en el mismo repo, sustitúyelo por './datos.csv'.
 
-  // === Estado ===
-  let RAW = [];          // filas originales
-  let COLS = [];         // nombres de columnas
-  let VISIBLE = [];      // filas filtradas
-  let PAGE = 1;
-  let PER_PAGE = 12;
+// === Utilidades ===
+const deaccent = (s='') => s.normalize('NFD').replace(/\p{Diacritic}/gu,'');
+const by = f => (a,b) => (f(a) > f(b)) ? 1 : (f(a) < f(b) ? -1 : 0);
+const debounce = (fn, ms=200) => { let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); }};
 
-  // Mapeo de columnas (se deduce)
-  let COL = {
-    title: null,   // Título / Nombre
-    desc: null,    // Descripción / Resumen
-    url:  null,    // Enlace / URL
-    cat:  null,    // Categoría / Tema / Tipo
-    src:  null,    // Fuente / Entidad
-    scope:null,    // Cobertura / Ámbito
-    date: null,    // Actualización / Fecha
-    tags: null     // Palabras clave / Etiquetas
+// Expandir sinónimos sencillos para búsqueda (mejorable con tu dominio)
+const THESAURUS = {
+  bosque:["forest","bosques"], deforestacion:["deforestation","deforestación"], agua:["hidrografia","río","ríos","hidrica","hídrica"],
+  suelo:["edafico","edáfico"], coberturas:["land cover","cobertura"], indice:["índice"], carreteras:["vías","vias"],
+};
+
+// Detección de filtros en la query: categoria:, origen:, rest:
+function parseQuery(raw){
+  const tokens = raw.trim().split(/\s+/);
+  const filters = { categoria:"", origen:"", rest:null };
+  const restYes = new Set(['si','sí','true','1','yes']);
+  const restNo = new Set(['no','false','0']);
+  const remain = [];
+  for(const t of tokens){
+    const [k,v] = t.split(":");
+    if(!v){ remain.push(t); continue; }
+    const key = deaccent(k.toLowerCase());
+    const val = v.toLowerCase();
+    if(key === 'categoria' || key==='cat') filters.categoria = val;
+    else if(key === 'origen' || key==='org') filters.origen = val;
+    else if(key === 'rest') {
+      if(restYes.has(val)) filters.rest = true; else if(restNo.has(val)) filters.rest = false;
+    } else remain.push(t);
+  }
+  return { text: remain.join(' '), filters };
+}
+
+function extractYear(str=''){
+  const m = String(str).match(/\b(19\d{2}|20\d{2})\b/);
+  return m ? m[1] : '';
+}
+
+function normalizeRecord(rec){
+  // Normaliza llaves y añade campos derivados
+  const out = {};
+  for (const [k,vRaw] of Object.entries(rec)){
+    const key = deaccent(String(k).trim().toLowerCase())
+      .replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+    const v = (vRaw==null) ? '' : String(vRaw).trim();
+    out[key] = v;
+  }
+  // Aliases esperados según tu hoja ejemplo
+  out.titulo = out.titulo || out.title || '';
+  out.descripcion = out.descripcion || out.description || '';
+  out.categoria = out.categoria || out.categoria_ || out['categor_a'] || '';
+  out.origen = out.origen || out.fuente || '';
+  out.acceso = out.acceso || out.url || '';
+  out.acceso_secundario = out['acceso_secundario'] || '';
+  out.acceso_respaldo = out['acceso_de_respaldo'] || out.respaldo || '';
+  out.rest = out.rest || '';
+  out.anio = extractYear(out.titulo) || extractYear(out.descripcion);
+  out._concat = [out.titulo, out.descripcion, out.categoria, out.origen].filter(Boolean).join(' \n ');
+  return out;
+}
+
+function uniqueSorted(arr){ return Array.from(new Set(arr.filter(Boolean))).sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'})); }
+
+// === Estado ===
+let RAW = [];      // registros normalizados
+let FUSE = null;   // índice de búsqueda
+let LAST_RESULTS = [];
+
+// === Carga de datos ===
+function loadCSV(){
+  return new Promise((resolve, reject)=>{
+    Papa.parse(DATA_URL, {
+      download:true,
+      header:true,
+      skipEmptyLines:true,
+      complete: (res)=>{
+        try{
+          RAW = res.data.map(normalizeRecord);
+          buildFacets();
+          buildFuse();
+          resolve(RAW);
+        }catch(e){ reject(e); }
+      },
+      error: (err)=> reject(err)
+    });
+  });
+}
+
+function buildFuse(){
+  const keys = [
+    {name:'titulo', weight:0.5},
+    {name:'descripcion', weight:0.25},
+    {name:'categoria', weight:0.15},
+    {name:'origen', weight:0.10},
+  ];
+  FUSE = new Fuse(RAW, {
+    includeScore:true,
+    includeMatches:false,
+    ignoreLocation:true,
+    threshold:0.34,
+    useExtendedSearch:true,
+    keys
+  });
+}
+
+function buildFacets(){
+  const cats = uniqueSorted(RAW.map(r=>r.categoria));
+  const orgs = uniqueSorted(RAW.map(r=>r.origen));
+  const selCat = document.getElementById('f-categoria');
+  const selOrg = document.getElementById('f-origen');
+  for(const v of cats){ const o=document.createElement('option'); o.value=v; o.textContent=v; selCat.appendChild(o); }
+  for(const v of orgs){ const o=document.createElement('option'); o.value=v; o.textContent=v; selOrg.appendChild(o); }
+
+  // Chips rápidas (las 6 primeras combinando categorías y orígenes más frecuentes)
+  const chips = document.getElementById('chips');
+  chips.innerHTML='';
+  const freq = (list)=> Object.entries(list.reduce((acc,x)=>{acc[x]=(acc[x]||0)+1; return acc;},{}))
+                      .sort((a,b)=>b[1]-a[1]).map(([k])=>k).slice(0,3);
+  const topCats = freq(RAW.map(r=>r.categoria).filter(Boolean));
+  const topOrgs = freq(RAW.map(r=>r.origen).filter(Boolean));
+  for(const c of topCats){ const s=document.createElement('span'); s.className='chip'; s.textContent=c; s.onclick=()=>applyQuickFilter('categoria',c); chips.appendChild(s);}
+  for(const o of topOrgs){ const s=document.createElement('span'); s.className='chip'; s.textContent=o; s.onclick=()=>applyQuickFilter('origen',o); chips.appendChild(s);}
+}
+
+function applyQuickFilter(type, val){
+  document.getElementById(type==='categoria'?'f-categoria':'f-origen').value = val;
+  runSearch();
+}
+
+// Expande términos con sinónimos básicos
+function expandTerms(text){
+  const words = text.split(/\s+/).map(w=>deaccent(w.toLowerCase()));
+  const extra = [];
+  for(const w of words){ if(THESAURUS[w]) extra.push(...THESAURUS[w]); }
+  return words.concat(extra).join(' ');
+}
+
+function filterAndRank(query, facetFilters){
+  let base = RAW;
+  // Facetas
+  if(facetFilters.categoria){
+    const q = deaccent(facetFilters.categoria.toLowerCase());
+    base = base.filter(r=>deaccent(r.categoria.toLowerCase()).includes(q));
+  }
+  if(facetFilters.origen){
+    const q = deaccent(facetFilters.origen.toLowerCase());
+    base = base.filter(r=>deaccent(r.origen.toLowerCase()).includes(q));
+  }
+  if(facetFilters.rest === true){ base = base.filter(r => r.rest); }
+  if(facetFilters.rest === false){ base = base.filter(r => !r.rest); }
+  if(document.getElementById('f-secundario').checked){ base = base.filter(r => r.acceso_secundario); }
+  if(document.getElementById('f-respaldo').checked){ base = base.filter(r => r.acceso_respaldo); }
+
+  // Búsqueda difusa
+  let ranked = base;
+  if(query){
+    const expanded = expandTerms(query);
+    // Usamos patrón extendido de Fuse con OR entre palabras
+    const pattern = expanded.split(/\s+/).filter(Boolean).map(w=>`'${w}`).join(' | ');
+    ranked = FUSE.search(pattern).map(x=>x.item).filter(x=> base.includes(x));
+  }
+  return ranked;
+}
+
+function sortResults(list){
+  const mode = document.getElementById('sort').value;
+  if(mode==='titulo') return list.slice().sort(by(x=>deaccent(x.titulo.toLowerCase())));
+  if(mode==='categoria') return list.slice().sort(by(x=>deaccent(x.categoria.toLowerCase()+"|"+x.titulo.toLowerCase())));
+  return list; // relevancia = ya vienen ordenados
+}
+
+function render(list){
+  const wrap = document.getElementById('results');
+  wrap.innerHTML='';
+  const count = document.getElementById('count');
+  count.textContent = `${list.length} ${list.length===1?'resultado':'resultados'}`;
+  for(const r of list){
+    const card = document.createElement('article');
+    card.className = 'card';
+    const h = document.createElement('h3'); h.textContent = r.titulo || 'Sin título';
+    const meta = document.createElement('div'); meta.className='meta';
+    if(r.categoria){ const b=document.createElement('span'); b.className='badge'; b.textContent=r.categoria; meta.appendChild(b); }
+    if(r.origen){ const b=document.createElement('span'); b.className='badge'; b.textContent=r.origen; meta.appendChild(b); }
+    if(r.anio){ const b=document.createElement('span'); b.className='badge'; b.textContent=`Año ${r.anio}`; meta.appendChild(b); }
+
+    const p = document.createElement('div'); p.className='desc'; p.textContent = r.descripcion || '';
+
+    const links = document.createElement('div'); links.className='links';
+    if(r.acceso){ links.appendChild(linkBtn(r.acceso, 'Abrir')) }
+    if(r.rest){ links.appendChild(linkBtn(r.rest, 'REST', true)) }
+    if(r.acceso_secundario){ links.appendChild(linkBtn(r.acceso_secundario, 'Secundario')) }
+    if(r.acceso_respaldo){ links.appendChild(linkBtn(r.acceso_respaldo, 'Respaldo')) }
+    links.appendChild(copyBtn(r.acceso || r.rest || r.acceso_secundario || r.acceso_respaldo || ''));
+
+    card.append(h, meta, p, links);
+    wrap.appendChild(card);
+  }
+}
+
+function linkBtn(href, label, primary=false){
+  const a = document.createElement('a');
+  a.href = href; a.target = '_blank'; a.rel='noopener noreferrer';
+  a.className = 'btn' + (primary ? ' primary' : '');
+  a.textContent = label;
+  return a;
+}
+
+function copyBtn(text){
+  const b = document.createElement('button');
+  b.className='btn'; b.textContent='Copiar enlace';
+  b.onclick = async ()=>{
+    try{ await navigator.clipboard.writeText(text); b.textContent='¡Copiado!'; setTimeout(()=>b.textContent='Copiar enlace', 1200);}catch(e){ b.textContent='Error'; setTimeout(()=>b.textContent='Copiar enlace', 1200); }
   };
+  return b;
+}
 
-  // === Elementos ===
-  const $ = (id) => document.getElementById(id);
-  const elQ = $('q'), elClear = $('clearBtn'), elRows = $('rows'),
-        elReload = $('reloadBtn'), elCount = $('count'), elUpdated = $('updated'),
-        elStatus = $('status'), elCards = $('cardsView'), elTable = $('tableView'),
-        elThead = $('thead'), elTbody = $('tbody'), elPrev = $('prevBtn'), elNext = $('nextBtn'),
-        elPageInfo = $('pageInfo'), elTabCards = $('tabCards'), elTabTable = $('tabTable'),
-        elFilters = $('filters'), elAnalytics = $('analytics'), elGroupBy = $('groupBy'),
-        elChartCanvas = $('summaryChart'), elDrop = $('drop'), elFile = $('fileInput'),
-        elDownload = $('downloadBtn');
+function runSearch(){
+  const raw = document.getElementById('q').value;
+  const { text, filters } = parseQuery(raw);
+  // sumar facetas de UI
+  const uiCat = document.getElementById('f-categoria').value;
+  const uiOrg = document.getElementById('f-origen').value;
+  const uiRest = document.getElementById('f-rest').checked ? true : (document.getElementById('f-rest').indeterminate ? null : false);
+  const merged = {
+    categoria: uiCat || filters.categoria,
+    origen: uiOrg || filters.origen,
+    rest: (filters.rest!==null) ? filters.rest : (document.getElementById('f-rest').checked ? true : null)
+  };
+  let list = filterAndRank(text, merged);
+  list = sortResults(list);
+  LAST_RESULTS = list;
+  render(list);
+}
 
-  let CHART = null;
-  let ACTIVE_CHIPS = new Map(); // {col -> value}
-
-  // === Utilidades ===
-  const isURL = (v) => typeof v === 'string' && /^https?:\/\//i.test(v.trim());
-  const norm = (v) => (v ?? '').toString().toLowerCase();
-  const esc = (s) => (s ?? '').toString().replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-  const fmt = (n) => new Intl.NumberFormat('es-CO').format(n);
-
-  function highlight(haystack, needle){
-    const h = haystack ?? '';
-    if (!needle) return esc(h);
-    const n = needle.toLowerCase();
-    let out = '', i = 0, str = h.toString();
-    while (i < str.length) {
-      const idx = str.toLowerCase().indexOf(n, i);
-      if (idx === -1){ out += esc(str.slice(i)); break; }
-      out += esc(str.slice(i, idx)) + '<span class="highlight">' + esc(str.slice(idx, idx + needle.length)) + '</span>';
-      i = idx + needle.length;
-    }
-    return out;
+// Inicialización
+(async function init(){
+  try{
+    document.getElementById('count').textContent = 'Cargando…';
+    await loadCSV();
+    document.getElementById('error').style.display='none';
+  }catch(err){
+    console.error(err);
+    document.getElementById('error').style.display='block';
   }
+  // Eventos
+  const go = document.getElementById('go');
+  const q = document.getElementById('q');
+  const fcat = document.getElementById('f-categoria');
+  const forg = document.getElementById('f-origen');
+  const frest = document.getElementById('f-rest');
+  const fsec = document.getElementById('f-secundario');
+  const fres = document.getElementById('f-respaldo');
+  const sort = document.getElementById('sort');
 
-  // CSV mínimo robusto (maneja comillas, comas y saltos dentro de comillas)
-  function parseCSV(text){
-    const rows = [];
-    let row = [], cur = '', quoted = false;
-    for (let i=0;i<text.length;i++){
-      const c = text[i], n = text[i+1];
-      if (quoted){
-        if (c === '"' && n === '"'){ cur += '"'; i++; }
-        else if (c === '"'){ quoted = false; }
-        else { cur += c; }
-      } else {
-        if (c === '"'){ quoted = true; }
-        else if (c === ','){ row.push(cur); cur = ''; }
-        else if (c === '\n'){ row.push(cur); rows.push(row); row = []; cur = ''; }
-        else if (c === '\r'){ /* ignore */ }
-        else { cur += c; }
-      }
-    }
-    row.push(cur); rows.push(row);
-    // encabezados
-    const headers = rows.shift().map(h => h.trim());
-    return rows.filter(r=>r.length && r.some(x=>x!=='' )).map(r => {
-      const obj = {};
-      headers.forEach((h, i) => obj[h || `col_${i+1}`] = r[i] ?? '');
-      return obj;
-    });
-  }
+  go.onclick = runSearch;
+  q.addEventListener('input', debounce(runSearch, 200));
+  fcat.onchange = runSearch; forg.onchange = runSearch; sort.onchange = runSearch;
+  frest.onchange = runSearch; fsec.onchange = runSearch; fres.onchange = runSearch;
 
-  function detectColumns(rows){
-    const names = Object.keys(rows[0] || {});
-    COLS = names;
-
-    const pick = (cands) => names.find(n => cands.includes(n.toLowerCase()));
-    const lower = names.map(n=>n.toLowerCase());
-
-    const mapBy = (arr) => arr.map(s=>s.toLowerCase());
-
-    COL.title = names[ lower.indexOf(pick(mapBy([
-      "título","titulo","nombre","recurso","dataset","conjunto","item"
-    ]) || '') ] ] || null;
-
-    COL.desc  = names[ lower.indexOf(pick(mapBy([
-      "descripción","descripcion","resumen","detalle","abstract"
-    ]) || '') ] ] || null;
-
-    // url: primera columna que tenga URLs
-    COL.url = names.find(col => rows.some(r => isURL(r[col]))) || names[ lower.indexOf(pick(mapBy(["enlace","link","url","acceso","descarga"])) || '') ] || null;
-
-    COL.cat   = names[ lower.indexOf(pick(mapBy(["categoría","categoria","tema","tipo"])) || '') ] ] || null;
-    COL.src   = names[ lower.indexOf(pick(mapBy(["fuente","entidad","organización","organizacion","origen"])) || '') ] ] || null;
-    COL.scope = names[ lower.indexOf(pick(mapBy(["cobertura","ámbito","ambito","área","area","territorio","pais","país","departamento","región","region"])) || '') ] ] || null;
-    COL.date  = names[ lower.indexOf(pick(mapBy(["actualización","actualizacion","fecha","última actualización","ultima actualizacion"])) || '') ] ] || null;
-    COL.tags  = names[ lower.indexOf(pick(mapBy(["palabras clave","etiquetas","tags","keywords"])) || '') ] ] || null;
-  }
-
-  function buildChips(){
-    elFilters.innerHTML = '';
-    const chipsSpec = [
-      { key:'cat',  label: COL.cat },
-      { key:'src',  label: COL.src },
-      { key:'scope',label: COL.scope }
-    ].filter(x=>x.label);
-
-    // Top categorías por frecuencia → chips seleccionables
-    chipsSpec.forEach(({key,label})=>{
-      const counts = new Map();
-      RAW.forEach(r=>{
-        const v = (r[label] ?? '').toString().trim() || '(vacío)';
-        counts.set(v, (counts.get(v)||0) + 1);
-      });
-      const top = [...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
-      top.forEach(([value,count])=>{
-        const chip = document.createElement('button');
-        chip.className = 'chip';
-        chip.textContent = `${value} (${count})`;
-        chip.dataset.col = label;
-        chip.dataset.value = value;
-        chip.onclick = () => {
-          const k = chip.dataset.col, v = chip.dataset.value;
-          const isActive = chip.classList.toggle('active');
-          if (isActive) ACTIVE_CHIPS.set(k, v); else ACTIVE_CHIPS.delete(k);
-          applyFilters();
-        };
-        elFilters.appendChild(chip);
-      });
-    });
-  }
-
-  function applyFilters(){
-    const q = elQ.value.trim();
-    const qn = q.toLowerCase();
-
-    VISIBLE = RAW.filter(r=>{
-      // filtros por chip (AND entre columnas)
-      for (const [colName, val] of ACTIVE_CHIPS){
-        const v = (r[colName] ?? '').toString().trim() || '(vacío)';
-        if (v !== val) return false;
-      }
-      // búsqueda textual
-      if (!q) return true;
-      for (const c of COLS){
-        const v = r[c];
-        if (v != null && v.toString().toLowerCase().includes(qn)) return true;
-      }
-      return false;
-    });
-
-    PAGE = 1;
-    render();
-    renderAnalytics();
-  }
-
-  function render(){
-    const total = VISIBLE.length;
-    const pages = Math.max(1, Math.ceil(total / PER_PAGE));
-    PAGE = Math.min(PAGE, pages);
-    const start = (PAGE-1)*PER_PAGE, end = start + PER_PAGE;
-    const slice = VISIBLE.slice(start, end);
-
-    // meta
-    elCount.textContent = `${fmt(total)} recurso${total===1?'':'s'}`;
-    elPageInfo.textContent = `Página ${PAGE} de ${pages}`;
-    elPrev.disabled = PAGE <= 1; elNext.disabled = PAGE >= pages;
-
-    // tarjetas
-    elCards.innerHTML = slice.map(r=>{
-      const title = r[COL.title] || '—';
-      const desc  = r[COL.desc] || '';
-      const url   = (COL.url && r[COL.url]) ? r[COL.url] : null;
-
-      const tags = [];
-      if (COL.cat   && r[COL.cat])   tags.push(r[COL.cat]);
-      if (COL.src   && r[COL.src])   tags.push(r[COL.src]);
-      if (COL.scope && r[COL.scope]) tags.push(r[COL.scope]);
-      if (COL.date  && r[COL.date])  tags.push(r[COL.date]);
-
-      const q = elQ.value.trim();
-      return `
-        <div class="card">
-          <h3>${highlight(title, q)}</h3>
-          <div class="desc">${highlight(desc, q)}</div>
-          <div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>
-          <div class="actions">
-            ${url ? `<a class="btn" href="${url}" target="_blank" rel="noopener">Abrir recurso</a>` : `<a class="btn" style="opacity:.6;pointer-events:none">Sin enlace</a>`}
-            ${url ? `<a class="btn secondary" href="${url}" target="_blank" rel="noopener">Ver enlace</a>` : ''}
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    // tabla
-    elThead.innerHTML = `<tr>${COLS.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>`;
-    elTbody.innerHTML = slice.map(r=>{
-      return `<tr>${COLS.map(c=>{
-        const v = r[c];
-        if (c === COL.url && isURL(v)){
-          return `<td><a class="link" href="${v}" target="_blank" rel="noopener">${esc(v)}</a></td>`;
-        } else {
-          return `<td>${highlight(v ?? '', elQ.value.trim())}</td>`;
-        }
-      }).join('')}</tr>`;
-    }).join('') || `<tr><td colspan="${COLS.length}" style="color:var(--muted);padding:16px">Sin resultados</td></tr>`;
-  }
-
-  function renderAnalytics(){
-    // Decide columnas candidatas para agrupación
-    const groupCandidates = [COL.cat, COL.src, COL.scope].filter(Boolean);
-    if (!groupCandidates.length){ elAnalytics.hidden = true; return; }
-    elGroupBy.innerHTML = groupCandidates.map(c=>`<option>${esc(c)}</option>`).join('');
-    const sel = elGroupBy.value || groupCandidates[0];
-    elGroupBy.value = sel;
-
-    const counts = new Map();
-    VISIBLE.forEach(r=>{
-      const v = (r[sel] ?? '').toString().trim() || '(vacío)';
-      counts.set(v, (counts.get(v)||0)+1);
-    });
-    const data = [...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12);
-    if (!data.length){ elAnalytics.hidden = true; return; }
-
-    elAnalytics.hidden = false;
-    if (CHART) CHART.destroy();
-    CHART = new Chart(elChartCanvas, {
-      type: 'bar',
-      data: { labels: data.map(d=>d[0]), datasets: [{ label:'Recursos', data: data.map(d=>d[1]) }] },
-      options: { plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#a7f3d0'}}, y:{ticks:{color:'#a7f3d0'}}} }
-    });
-  }
-
-  function setUpdatedHeader(res){
-    const lm = res.headers?.get?.('last-modified');
-    elUpdated.textContent = lm ? ` · Actualizado: ${new Date(lm).toLocaleString('es-CO')}` : '';
-  }
-
-  // === Carga de datos ===
-  async function loadFromURL(){
-    elStatus.textContent = '';
-    elCount.textContent = 'Cargando…';
-    elDrop.classList.remove('show');
-
-    const url = CSV_URL + (CSV_URL.includes('?') ? '&' : '?') + '_ts=' + Date.now();
-    let res;
-    try{
-      res = await fetch(url, { cache: 'no-store' });
-      if (!res.ok) throw new Error('HTTP '+res.status);
-      const txt = await res.text();
-      setUpdatedHeader(res);
-      return txt;
-    }catch(err){
-      console.warn('Fallo fetch CSV:', err);
-      throw err;
-    }
-  }
-
-  function ingestCSV(csvText){
-    // Si quieres usar XLSX también sirve, pero nuestro parser es más tolerante aquí
-    const rows = parseCSV(csvText);
-    if (!rows.length) throw new Error('CSV vacío');
-    RAW = rows;
-    detectColumns(RAW);
-    buildChips();
-    ACTIVE_CHIPS.clear();
-    VISIBLE = [...RAW];
-    PAGE = 1;
-    render();
-    renderAnalytics();
-    elStatus.textContent = '';
-  }
-
-  // === Eventos UI ===
-  elQ.addEventListener('keydown', (e)=>{ if (e.key==='Enter') applyFilters(); });
-  elClear.addEventListener('click', ()=>{ elQ.value=''; ACTIVE_CHIPS.clear(); document.querySelectorAll('.chip.active').forEach(x=>x.classList.remove('active')); applyFilters(); });
-  elRows.addEventListener('change', ()=>{ PER_PAGE = parseInt(elRows.value,10) || 12; PAGE = 1; render(); });
-  elReload.addEventListener('click', init);
-  elPrev.addEventListener('click', ()=>{ if (PAGE>1){ PAGE--; render(); } });
-  elNext.addEventListener('click', ()=>{ const pages = Math.max(1, Math.ceil(VISIBLE.length/PER_PAGE)); if (PAGE<pages){ PAGE++; render(); } });
-
-  // Vista
-  function setView(which){
-    if (which==='cards'){ elCards.hidden=false; elTable.hidden=true; elTabCards.classList.add('active'); elTabTable.classList.remove('active'); }
-    else { elCards.hidden=true; elTable.hidden=false; elTabTable.classList.add('active'); elTabCards.classList.remove('active'); }
-  }
-  elTabCards.addEventListener('click', ()=>setView('cards'));
-  elTabTable.addEventListener('click', ()=>setView('table'));
-
-  // Fallback local
-  elFile.addEventListener('change', async (e)=>{
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const text = await file.text();
-    try{ ingestCSV(text); elStatus.textContent='(Cargado desde archivo local)'; }
-    catch(e){ elStatus.innerHTML = '<span class="error">Error al leer el CSV local.</span>'; }
-  });
-  // Drag & drop
-  ;['dragenter','dragover'].forEach(ev=>document.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); elDrop.classList.add('show'); }));
-  ;['dragleave','drop'].forEach(ev=>document.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); }));
-  document.addEventListener('drop', async (e)=>{
-    const file = e.dataTransfer?.files?.[0]; if (!file) return;
-    const text = await file.text();
-    try{ ingestCSV(text); elStatus.textContent='(Cargado desde archivo local por arrastre)'; }
-    catch(e){ elStatus.innerHTML = '<span class="error">Error al leer el CSV local.</span>'; }
-  });
-
-  // Descargar CSV tal cual (útil para auditoría)
-  elDownload.addEventListener('click', ()=>{ window.open(CSV_URL, '_blank'); });
-
-  async function init(){
-    try{
-      const txt = await loadFromURL();
-      ingestCSV(txt);
-      setView('cards'); // vista por defecto
-      elDrop.classList.remove('show');
-    }catch(e){
-      elStatus.innerHTML = '<span class="error">Error al cargar los datos.</span>';
-      // mostrar fallback local
-      elDrop.classList.add('show');
-      setView('table');
-      elCount.textContent = '—';
-    }
-  }
-
-  init();
+  runSearch();
 })();
 </script>
 </body>
