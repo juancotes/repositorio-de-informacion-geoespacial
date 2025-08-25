@@ -5,150 +5,163 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Repositorio de información geoespacial relevante para asuntos ambientales</title>
 
-<!-- Librerías por CDN (permitidas) -->
+<!-- Puedes usar estas CDNs (como pediste) -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 <style>
-  :root{ 
-    /* Paleta en verdes */
-    --bg:#06150f;            /* fondo general muy oscuro con tinte verde */
-    --panel:#0b2018;         /* panel */
-    --muted:#93b5a1;         /* texto atenuado */
-    --text:#eaf6f0;          /* texto principal */
-    --accent:#0a784f;        /* botón principal */
-    --accent-ink:#072f21;    /* texto sobre acento */
-    --accent-2:#0a5e41;      /* acento secundario (borde/tabs) */
-    --ok:#10b981;            /* verde ok */
-    --warn:#f59e0b;          /* ámbar */
-    --bad:#ef4444;           /* rojo */
+:root{ 
+  /* Paleta en verdes (tu paleta) */
+  --bg:#06150f;            /* fondo general muy oscuro con tinte verde */
+  --panel:#0b2018;         /* panel */
+  --muted:#93b5a1;         /* texto atenuado */
+  --text:#eaf6f0;          /* texto principal */
+  --accent:#0a784f;        /* botón principal */
+  --accent-ink:#072f21;    /* texto sobre acento */
+  --accent-2:#0a5e41;      /* acento secundario (borde/tabs) */
+  --ok:#10b981;            /* verde ok */
+  --warn:#f59e0b;          /* ámbar */
+  --bad:#ef4444;           /* rojo */
+  --tab:#0d2019; 
+  --tabActive:#123227;
+}
 
-    --tab:#0d2019; 
-    --tabActive:#123227;
-  }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
+a{color:#7ee2b8}
 
-  * { box-sizing: border-box; }
-  body{
-    margin:0; background:var(--bg); color:var(--text);
-    font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
-  }
-  header{
-    display:flex; align-items:center; gap:16px;
-    padding:16px 20px; background:var(--panel); border-bottom:1px solid var(--accent-2);
-    position:sticky; top:0; z-index:50;
-  }
-  header img{
-    height:48px; width:auto; border-radius:8px; background:#0002; object-fit:contain;
-  }
-  header .titles{ display:flex; flex-direction:column; gap:2px; }
-  header h1{ margin:0; font-size:20px; font-weight:700; }
-  header p{ margin:0; color:var(--muted); font-size:13px; }
+header{
+  position:sticky;top:0;z-index:30;
+  display:flex;align-items:center;gap:14px;
+  padding:14px 18px;background:linear-gradient(180deg, #0b2018, #0b2018e6 70%, #0b201800);
+  border-bottom:1px solid var(--accent-2)
+}
+header img{height:48px;width:auto;border-radius:10px;background:#0002;object-fit:contain}
+header h1{margin:0;font-size:20px}
+header p{margin:0;color:var(--muted);font-size:13px}
 
-  .container{ max-width:1200px; margin: 20px auto; padding: 0 16px; }
+.container{max-width:1200px;margin:20px auto;padding:0 16px}
 
-  .controls{
-    display:grid; grid-template-columns: 1fr auto auto; gap:10px;
-    background:var(--panel); border:1px solid var(--accent-2); padding:12px; border-radius:12px;
-  }
-  .searchbox{
-    display:flex; gap:8px; align-items:center; background:var(--tab); border:1px solid var(--accent-2); border-radius:10px; padding:8px 10px;
-  }
-  .searchbox input{
-    flex:1; background:transparent; border:none; outline:none; color:var(--text);
-  }
-  .btn{
-    background:var(--accent); color:var(--text); border:1px solid var(--accent-2);
-    padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600;
-  }
-  .btn.secondary{ background:var(--tab); }
-  .btn:disabled{ opacity:.6; cursor:not-allowed; }
+.toolbar{
+  display:grid;grid-template-columns:1fr auto auto auto;gap:10px;
+  background:var(--panel);border:1px solid var(--accent-2);border-radius:14px;padding:10px
+}
+.search{
+  display:flex;align-items:center;gap:8px;background:var(--tab);border:1px solid var(--accent-2);border-radius:10px;padding:8px 10px
+}
+.search input{flex:1;background:transparent;border:none;outline:none;color:var(--text)}
+.btn{background:var(--accent);color:var(--text);border:1px solid var(--accent-2);padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:600}
+.btn.secondary{background:var(--tab)}
+.btn:disabled{opacity:.6;cursor:not-allowed}
 
-  .meta{
-    display:flex; align-items:center; justify-content:space-between; margin:14px 2px; color:var(--muted); font-size:14px;
-  }
+.filters{
+  display:flex;flex-wrap:wrap;gap:8px;margin:12px 2px
+}
+.chip{
+  background:var(--tab);border:1px solid var(--accent-2);color:var(--text);
+  padding:6px 10px;border-radius:999px;font-size:13px;cursor:pointer
+}
+.chip.active{background:var(--accent);color:var(--text)}
 
-  .grid{
-    overflow:auto; background:var(--panel); border:1px solid var(--accent-2); border-radius:12px;
-  }
-  table{
-    width:100%; border-collapse:separate; border-spacing:0;
-    min-width:700px;
-  }
-  thead th{
-    position:sticky; top:0; z-index:1; background:var(--tabActive);
-    text-align:left; font-weight:700; padding:10px 12px; border-bottom:1px solid var(--accent-2);
-  }
-  tbody td{
-    padding:10px 12px; border-bottom:1px solid #0a2a21;
-    vertical-align:top;
-  }
-  tbody tr:nth-child(even){ background: #0a1d17; }
-  td a.link{
-    display:inline-block; background:transparent; color:#7ee2b8; text-decoration:underline;
-    word-break:break-all;
-  }
-  td .open-btn{
-    display:inline-block; padding:6px 10px; border-radius:8px; border:1px solid var(--accent-2);
-    background:var(--accent); color:var(--text); font-weight:600; text-decoration:none;
-  }
+.meta{display:flex;justify-content:space-between;align-items:center;margin:12px 2px;color:var(--muted);font-size:14px}
 
-  .pagination{
-    display:flex; gap:8px; align-items:center; justify-content:flex-end; margin:12px 2px;
-  }
-  select, option{
-    background:var(--tab); color:var(--text); border:1px solid var(--accent-2); border-radius:8px; padding:8px 10px;
-  }
+.view-tabs{
+  display:flex;gap:6px;background:var(--panel);border:1px solid var(--accent-2);border-radius:12px;padding:6px;width:max-content
+}
+.view-tabs button{
+  background:var(--tab);color:var(--text);border:1px solid var(--accent-2);
+  padding:6px 10px;border-radius:8px;cursor:pointer
+}
+.view-tabs button.active{background:var(--accent)}
 
-  .status{ margin:12px 2px; color:var(--warn); }
-  .error{ color:var(--bad); }
+.grid-cards{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:12px;margin-top:10px
+}
+.card{
+  background:var(--panel);border:1px solid var(--accent-2);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px
+}
+.card h3{margin:0;font-size:16px}
+.card .desc{color:var(--muted);font-size:14px}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{background:#0c2a22;border:1px solid #1d4d3d;padding:3px 8px;border-radius:999px;font-size:12px;color:#c9ffe8}
+.card .actions{display:flex;gap:8px;margin-top:4px}
+.card .actions a{flex:1;text-align:center;text-decoration:none}
 
-  /* Chart card (opcional) */
-  .card{
-    margin-top:16px; background:var(--panel); border:1px solid var(--accent-2); border-radius:12px; padding:12px;
-  }
-  .card h3{ margin:0 0 8px 0; font-size:16px; }
-  .card .row{ display:flex; gap:10px; align-items:center; margin-bottom:8px; }
-  .hide{ display:none !important; }
+.table-wrap{
+  overflow:auto;background:var(--panel);border:1px solid var(--accent-2);border-radius:12px;margin-top:10px
+}
+table{width:100%;border-collapse:separate;border-spacing:0;min-width:900px}
+thead th{position:sticky;top:0;background:var(--tabActive);padding:10px 12px;border-bottom:1px solid var(--accent-2);text-align:left}
+tbody td{padding:10px 12px;border-bottom:1px solid #0a2a21;vertical-align:top}
+tbody tr:nth-child(even){background:#0a1d17}
+a.link{color:#7ee2b8;text-decoration:underline;word-break:break-all}
+
+.highlight{background:#065f46;padding:0 .2em;border-radius:4px}
+
+.pagination{display:flex;gap:8px;justify-content:flex-end;margin:12px 2px}
+
+.status{margin-top:10px;color:var(--warn)}
+.error{color:var(--bad)}
+
+.card-analytics{margin-top:16px;background:var(--panel);border:1px solid var(--accent-2);border-radius:12px;padding:12px}
+.card-analytics h3{margin:0 0 8px 0;font-size:16px}
+
+.dropzone{
+  display:none;margin-top:12px;padding:16px;border:2px dashed #1f5b47;border-radius:12px;background:#0a1d17;color:var(--muted)
+}
+.dropzone.show{display:block}
+.dropzone strong{color:#a7f3d0}
 </style>
 </head>
 <body>
-
 <header>
-  <!-- Reemplaza logo.png por tu archivo en el repo -->
-  <img src="./logo.png" alt="Logo del repositorio" onerror="this.style.display='none'">
-  <div class="titles">
+  <img src="./logo.png" alt="Logo" onerror="this.style.display='none'">
+  <div>
     <h1>Repositorio de información geoespacial relevante para asuntos ambientales</h1>
-    <p>Buscador en línea – Fuente: Hoja de cálculo publicada (CSV)</p>
+    <p>Buscador dinámico – Fuente viva desde Google Sheets (CSV publicado)</p>
   </div>
 </header>
 
 <div class="container">
 
-  <div class="controls">
-    <div class="searchbox">
+  <div class="toolbar">
+    <div class="search">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 21l-3.6-3.6M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="#7ee2b8" stroke-width="2" stroke-linecap="round"/></svg>
-      <input id="q" type="search" placeholder="Buscar por título, tema, fuente… (Enter para aplicar)" />
+      <input id="q" type="search" placeholder="Buscar por título, descripción, entidad, palabras clave… (Enter para aplicar)">
       <button class="btn secondary" id="clearBtn">Limpiar</button>
     </div>
-    <div>
-      <label for="rows" class="sr-only">Filas por página</label>
-      <select id="rows" title="Filas por página">
-        <option value="10">10 filas</option>
-        <option value="25" selected>25 filas</option>
-        <option value="50">50 filas</option>
-        <option value="100">100 filas</option>
-      </select>
+    <div class="view-tabs" role="tablist" aria-label="Cambiar vista">
+      <button id="tabCards" class="active" aria-selected="true">Tarjetas</button>
+      <button id="tabTable" aria-selected="false">Tabla</button>
     </div>
-    <button class="btn" id="reloadBtn" title="Recargar datos">Recargar</button>
+    <select id="rows">
+      <option value="12" selected>12 por página</option>
+      <option value="24">24 por página</option>
+      <option value="50">50 por página</option>
+      <option value="100">100 por página</option>
+    </select>
+    <button class="btn" id="reloadBtn">Recargar</button>
   </div>
+
+  <div class="filters" id="filters"></div>
 
   <div class="meta">
-    <div id="count">Cargando…</div>
-    <div id="updated"></div>
+    <div>
+      <span id="count">Cargando…</span>
+      <span id="updated"></span>
+    </div>
+    <div>
+      <button class="btn secondary" id="downloadBtn">Descargar CSV</button>
+    </div>
   </div>
 
-  <div class="grid">
-    <table id="tbl">
+  <!-- Vista tarjetas -->
+  <div id="cardsView" class="grid-cards" hidden></div>
+
+  <!-- Vista tabla -->
+  <div id="tableView" class="table-wrap" hidden>
+    <table>
       <thead id="thead"></thead>
       <tbody id="tbody"></tbody>
     </table>
@@ -160,14 +173,24 @@
     <button class="btn secondary" id="nextBtn">Siguiente ▶</button>
   </div>
 
-  <!-- Tarjeta de gráfico (opcional, solo si se detecta columna categórica típica) -->
-  <div class="card hide" id="chartCard">
-    <div class="row">
-      <h3 style="flex:1">Distribución por categoría</h3>
+  <!-- Analytics (opcional) -->
+  <div class="card-analytics" id="analytics" hidden>
+    <h3>Resumen por categoría</h3>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
       <label for="groupBy">Agrupar por:</label>
       <select id="groupBy"></select>
     </div>
-    <canvas id="summaryChart" height="220"></canvas>
+    <canvas id="summaryChart" height="230"></canvas>
+  </div>
+
+  <!-- Fallback si el CSV remoto falla -->
+  <div id="drop" class="dropzone">
+    <strong>¿Problemas cargando desde Google Sheets?</strong><br>
+    Arrastra aquí un archivo <em>.csv</em> con la misma estructura, o 
+    <label style="text-decoration:underline;cursor:pointer">
+      selecciónalo
+      <input id="fileInput" type="file" accept=".csv" style="display:none">
+    </label>.
   </div>
 
   <div class="status" id="status"></div>
@@ -176,260 +199,344 @@
 <script>
 (() => {
   // === Configuración ===
-  const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQUY-fMuoM5GRNKquHW1kfwvVmdJTDrDlgNiIeyHppkFrcm_nJuKbgbySJSQc2e2Z-r4JFtheJMmYze/pub?output=csv";
+  const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQUY-fMuoM5GRNKquHW1kfwvVmdJTDrDlgNiIeyHppkFrcm_nJuKbgbySJSQc2e2Z-r4JFtheJMmYze/pub?gid=0&single=true&output=csv";
 
   // === Estado ===
-  let RAW_ROWS = [];         // Filas originales (objetos)
-  let VISIBLE_ROWS = [];     // Filas filtradas por búsqueda
-  let COLS = [];             // Nombres de columnas
-  let LINK_COL = null;       // Nombre de la columna que contiene URL
+  let RAW = [];          // filas originales
+  let COLS = [];         // nombres de columnas
+  let VISIBLE = [];      // filas filtradas
   let PAGE = 1;
-  let ROWS_PER_PAGE = 25;
-  let CHART = null;
+  let PER_PAGE = 12;
+
+  // Mapeo de columnas (se deduce)
+  let COL = {
+    title: null,   // Título / Nombre
+    desc: null,    // Descripción / Resumen
+    url:  null,    // Enlace / URL
+    cat:  null,    // Categoría / Tema / Tipo
+    src:  null,    // Fuente / Entidad
+    scope:null,    // Cobertura / Ámbito
+    date: null,    // Actualización / Fecha
+    tags: null     // Palabras clave / Etiquetas
+  };
 
   // === Elementos ===
-  const elQ = document.getElementById('q');
-  const elClear = document.getElementById('clearBtn');
-  const elReload = document.getElementById('reloadBtn');
-  const elRows = document.getElementById('rows');
-  const elCount = document.getElementById('count');
-  const elUpdated = document.getElementById('updated');
-  const elStatus = document.getElementById('status');
-  const elThead = document.getElementById('thead');
-  const elTbody = document.getElementById('tbody');
-  const elPrev = document.getElementById('prevBtn');
-  const elNext = document.getElementById('nextBtn');
-  const elPageInfo = document.getElementById('pageInfo');
+  const $ = (id) => document.getElementById(id);
+  const elQ = $('q'), elClear = $('clearBtn'), elRows = $('rows'),
+        elReload = $('reloadBtn'), elCount = $('count'), elUpdated = $('updated'),
+        elStatus = $('status'), elCards = $('cardsView'), elTable = $('tableView'),
+        elThead = $('thead'), elTbody = $('tbody'), elPrev = $('prevBtn'), elNext = $('nextBtn'),
+        elPageInfo = $('pageInfo'), elTabCards = $('tabCards'), elTabTable = $('tabTable'),
+        elFilters = $('filters'), elAnalytics = $('analytics'), elGroupBy = $('groupBy'),
+        elChartCanvas = $('summaryChart'), elDrop = $('drop'), elFile = $('fileInput'),
+        elDownload = $('downloadBtn');
 
-  const chartCard = document.getElementById('chartCard');
-  const elGroupBy = document.getElementById('groupBy');
-  const elChartCanvas = document.getElementById('summaryChart');
+  let CHART = null;
+  let ACTIVE_CHIPS = new Map(); // {col -> value}
 
   // === Utilidades ===
   const isURL = (v) => typeof v === 'string' && /^https?:\/\//i.test(v.trim());
   const norm = (v) => (v ?? '').toString().toLowerCase();
+  const esc = (s) => (s ?? '').toString().replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const fmt = (n) => new Intl.NumberFormat('es-CO').format(n);
 
-  function detectLinkColumn(rows, cols) {
-    for (const c of cols) {
-      for (let i = 0; i < Math.min(rows.length, 50); i++) {
-        if (isURL(rows[i][c])) return c;
+  function highlight(haystack, needle){
+    const h = haystack ?? '';
+    if (!needle) return esc(h);
+    const n = needle.toLowerCase();
+    let out = '', i = 0, str = h.toString();
+    while (i < str.length) {
+      const idx = str.toLowerCase().indexOf(n, i);
+      if (idx === -1){ out += esc(str.slice(i)); break; }
+      out += esc(str.slice(i, idx)) + '<span class="highlight">' + esc(str.slice(idx, idx + needle.length)) + '</span>';
+      i = idx + needle.length;
+    }
+    return out;
+  }
+
+  // CSV mínimo robusto (maneja comillas, comas y saltos dentro de comillas)
+  function parseCSV(text){
+    const rows = [];
+    let row = [], cur = '', quoted = false;
+    for (let i=0;i<text.length;i++){
+      const c = text[i], n = text[i+1];
+      if (quoted){
+        if (c === '"' && n === '"'){ cur += '"'; i++; }
+        else if (c === '"'){ quoted = false; }
+        else { cur += c; }
+      } else {
+        if (c === '"'){ quoted = true; }
+        else if (c === ','){ row.push(cur); cur = ''; }
+        else if (c === '\n'){ row.push(cur); rows.push(row); row = []; cur = ''; }
+        else if (c === '\r'){ /* ignore */ }
+        else { cur += c; }
       }
     }
-    return null;
+    row.push(cur); rows.push(row);
+    // encabezados
+    const headers = rows.shift().map(h => h.trim());
+    return rows.filter(r=>r.length && r.some(x=>x!=='' )).map(r => {
+      const obj = {};
+      headers.forEach((h, i) => obj[h || `col_${i+1}`] = r[i] ?? '');
+      return obj;
+    });
   }
 
-  function pickCategoryColumn(cols) {
-    const candidates = ["Categoría","Categoria","Category","Tema","Tipo","Fuente","Origen"];
-    for (const name of candidates) {
-      if (cols.includes(name)) return name;
-    }
-    return null;
+  function detectColumns(rows){
+    const names = Object.keys(rows[0] || {});
+    COLS = names;
+
+    const pick = (cands) => names.find(n => cands.includes(n.toLowerCase()));
+    const lower = names.map(n=>n.toLowerCase());
+
+    const mapBy = (arr) => arr.map(s=>s.toLowerCase());
+
+    COL.title = names[ lower.indexOf(pick(mapBy([
+      "título","titulo","nombre","recurso","dataset","conjunto","item"
+    ]) || '') ] ] || null;
+
+    COL.desc  = names[ lower.indexOf(pick(mapBy([
+      "descripción","descripcion","resumen","detalle","abstract"
+    ]) || '') ] ] || null;
+
+    // url: primera columna que tenga URLs
+    COL.url = names.find(col => rows.some(r => isURL(r[col]))) || names[ lower.indexOf(pick(mapBy(["enlace","link","url","acceso","descarga"])) || '') ] || null;
+
+    COL.cat   = names[ lower.indexOf(pick(mapBy(["categoría","categoria","tema","tipo"])) || '') ] ] || null;
+    COL.src   = names[ lower.indexOf(pick(mapBy(["fuente","entidad","organización","organizacion","origen"])) || '') ] ] || null;
+    COL.scope = names[ lower.indexOf(pick(mapBy(["cobertura","ámbito","ambito","área","area","territorio","pais","país","departamento","región","region"])) || '') ] ] || null;
+    COL.date  = names[ lower.indexOf(pick(mapBy(["actualización","actualizacion","fecha","última actualización","ultima actualizacion"])) || '') ] ] || null;
+    COL.tags  = names[ lower.indexOf(pick(mapBy(["palabras clave","etiquetas","tags","keywords"])) || '') ] ] || null;
   }
 
-  // Render de tabla
-  function renderTableHeader() {
-    const columns = [...COLS];
-    const ths = columns.map(c => `<th>${c}</th>`);
-    // Si hay columna de enlace pero no está explícita como botón aparte, mantenemos la celda original.
-    // Nada extra que agregar: la columna ya vendrá como clickable si detectamos URL.
-    elThead.innerHTML = `<tr>${ths.join('')}</tr>`;
+  function buildChips(){
+    elFilters.innerHTML = '';
+    const chipsSpec = [
+      { key:'cat',  label: COL.cat },
+      { key:'src',  label: COL.src },
+      { key:'scope',label: COL.scope }
+    ].filter(x=>x.label);
+
+    // Top categorías por frecuencia → chips seleccionables
+    chipsSpec.forEach(({key,label})=>{
+      const counts = new Map();
+      RAW.forEach(r=>{
+        const v = (r[label] ?? '').toString().trim() || '(vacío)';
+        counts.set(v, (counts.get(v)||0) + 1);
+      });
+      const top = [...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
+      top.forEach(([value,count])=>{
+        const chip = document.createElement('button');
+        chip.className = 'chip';
+        chip.textContent = `${value} (${count})`;
+        chip.dataset.col = label;
+        chip.dataset.value = value;
+        chip.onclick = () => {
+          const k = chip.dataset.col, v = chip.dataset.value;
+          const isActive = chip.classList.toggle('active');
+          if (isActive) ACTIVE_CHIPS.set(k, v); else ACTIVE_CHIPS.delete(k);
+          applyFilters();
+        };
+        elFilters.appendChild(chip);
+      });
+    });
   }
 
-  function renderTableBody() {
-    const start = (PAGE - 1) * ROWS_PER_PAGE;
-    const end = start + ROWS_PER_PAGE;
-    const slice = VISIBLE_ROWS.slice(start, end);
+  function applyFilters(){
+    const q = elQ.value.trim();
+    const qn = q.toLowerCase();
 
-    const rowsHtml = slice.map(row => {
-      return `<tr>${COLS.map(col => {
-        const val = row[col];
-        if (LINK_COL === col && isURL(val)) {
-          // Botón y link visible
-          return `<td>
-            <a class="open-btn" href="${val}" target="_blank" rel="noopener">Abrir</a><br>
-            <a class="link" href="${val}" target="_blank" rel="noopener">${val}</a>
-          </td>`;
-        } else {
-          const safe = (val === undefined || val === null) ? "" : escapeHtml(val.toString());
-          return `<td>${safe}</td>`;
-        }
-      }).join('')}</tr>`;
+    VISIBLE = RAW.filter(r=>{
+      // filtros por chip (AND entre columnas)
+      for (const [colName, val] of ACTIVE_CHIPS){
+        const v = (r[colName] ?? '').toString().trim() || '(vacío)';
+        if (v !== val) return false;
+      }
+      // búsqueda textual
+      if (!q) return true;
+      for (const c of COLS){
+        const v = r[c];
+        if (v != null && v.toString().toLowerCase().includes(qn)) return true;
+      }
+      return false;
+    });
+
+    PAGE = 1;
+    render();
+    renderAnalytics();
+  }
+
+  function render(){
+    const total = VISIBLE.length;
+    const pages = Math.max(1, Math.ceil(total / PER_PAGE));
+    PAGE = Math.min(PAGE, pages);
+    const start = (PAGE-1)*PER_PAGE, end = start + PER_PAGE;
+    const slice = VISIBLE.slice(start, end);
+
+    // meta
+    elCount.textContent = `${fmt(total)} recurso${total===1?'':'s'}`;
+    elPageInfo.textContent = `Página ${PAGE} de ${pages}`;
+    elPrev.disabled = PAGE <= 1; elNext.disabled = PAGE >= pages;
+
+    // tarjetas
+    elCards.innerHTML = slice.map(r=>{
+      const title = r[COL.title] || '—';
+      const desc  = r[COL.desc] || '';
+      const url   = (COL.url && r[COL.url]) ? r[COL.url] : null;
+
+      const tags = [];
+      if (COL.cat   && r[COL.cat])   tags.push(r[COL.cat]);
+      if (COL.src   && r[COL.src])   tags.push(r[COL.src]);
+      if (COL.scope && r[COL.scope]) tags.push(r[COL.scope]);
+      if (COL.date  && r[COL.date])  tags.push(r[COL.date]);
+
+      const q = elQ.value.trim();
+      return `
+        <div class="card">
+          <h3>${highlight(title, q)}</h3>
+          <div class="desc">${highlight(desc, q)}</div>
+          <div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>
+          <div class="actions">
+            ${url ? `<a class="btn" href="${url}" target="_blank" rel="noopener">Abrir recurso</a>` : `<a class="btn" style="opacity:.6;pointer-events:none">Sin enlace</a>`}
+            ${url ? `<a class="btn secondary" href="${url}" target="_blank" rel="noopener">Ver enlace</a>` : ''}
+          </div>
+        </div>
+      `;
     }).join('');
 
-    elTbody.innerHTML = rowsHtml || `<tr><td colspan="${COLS.length}" style="color:var(--muted);padding:16px;">Sin resultados</td></tr>`;
-
-    // Meta y paginación
-    const total = VISIBLE_ROWS.length;
-    const totalPages = Math.max(1, Math.ceil(total / ROWS_PER_PAGE));
-    PAGE = Math.min(PAGE, totalPages);
-    elPageInfo.textContent = `Página ${PAGE} de ${totalPages}`;
-    elPrev.disabled = PAGE <= 1;
-    elNext.disabled = PAGE >= totalPages;
-
-    elCount.textContent = `${fmt(total)} resultado${total===1?'':'s'}`;
-  }
-
-  function escapeHtml(s){
-    return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-  }
-
-  // Búsqueda
-  function applySearch() {
-    const q = norm(elQ.value);
-    if (!q) {
-      VISIBLE_ROWS = [...RAW_ROWS];
-    } else {
-      VISIBLE_ROWS = RAW_ROWS.filter(row => {
-        for (const c of COLS) {
-          const v = row[c];
-          if (v !== undefined && v !== null && norm(v).includes(q)) return true;
+    // tabla
+    elThead.innerHTML = `<tr>${COLS.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>`;
+    elTbody.innerHTML = slice.map(r=>{
+      return `<tr>${COLS.map(c=>{
+        const v = r[c];
+        if (c === COL.url && isURL(v)){
+          return `<td><a class="link" href="${v}" target="_blank" rel="noopener">${esc(v)}</a></td>`;
+        } else {
+          return `<td>${highlight(v ?? '', elQ.value.trim())}</td>`;
         }
-        return false;
-      });
+      }).join('')}</tr>`;
+    }).join('') || `<tr><td colspan="${COLS.length}" style="color:var(--muted);padding:16px">Sin resultados</td></tr>`;
+  }
+
+  function renderAnalytics(){
+    // Decide columnas candidatas para agrupación
+    const groupCandidates = [COL.cat, COL.src, COL.scope].filter(Boolean);
+    if (!groupCandidates.length){ elAnalytics.hidden = true; return; }
+    elGroupBy.innerHTML = groupCandidates.map(c=>`<option>${esc(c)}</option>`).join('');
+    const sel = elGroupBy.value || groupCandidates[0];
+    elGroupBy.value = sel;
+
+    const counts = new Map();
+    VISIBLE.forEach(r=>{
+      const v = (r[sel] ?? '').toString().trim() || '(vacío)';
+      counts.set(v, (counts.get(v)||0)+1);
+    });
+    const data = [...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12);
+    if (!data.length){ elAnalytics.hidden = true; return; }
+
+    elAnalytics.hidden = false;
+    if (CHART) CHART.destroy();
+    CHART = new Chart(elChartCanvas, {
+      type: 'bar',
+      data: { labels: data.map(d=>d[0]), datasets: [{ label:'Recursos', data: data.map(d=>d[1]) }] },
+      options: { plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#a7f3d0'}}, y:{ticks:{color:'#a7f3d0'}}} }
+    });
+  }
+
+  function setUpdatedHeader(res){
+    const lm = res.headers?.get?.('last-modified');
+    elUpdated.textContent = lm ? ` · Actualizado: ${new Date(lm).toLocaleString('es-CO')}` : '';
+  }
+
+  // === Carga de datos ===
+  async function loadFromURL(){
+    elStatus.textContent = '';
+    elCount.textContent = 'Cargando…';
+    elDrop.classList.remove('show');
+
+    const url = CSV_URL + (CSV_URL.includes('?') ? '&' : '?') + '_ts=' + Date.now();
+    let res;
+    try{
+      res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP '+res.status);
+      const txt = await res.text();
+      setUpdatedHeader(res);
+      return txt;
+    }catch(err){
+      console.warn('Fallo fetch CSV:', err);
+      throw err;
     }
+  }
+
+  function ingestCSV(csvText){
+    // Si quieres usar XLSX también sirve, pero nuestro parser es más tolerante aquí
+    const rows = parseCSV(csvText);
+    if (!rows.length) throw new Error('CSV vacío');
+    RAW = rows;
+    detectColumns(RAW);
+    buildChips();
+    ACTIVE_CHIPS.clear();
+    VISIBLE = [...RAW];
     PAGE = 1;
-    renderTableBody();
+    render();
+    renderAnalytics();
+    elStatus.textContent = '';
   }
 
-  // Gráfico (opcional)
-  function buildChartIfPossible() {
-    // Llenar selector con columnas disponibles
-    elGroupBy.innerHTML = COLS.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  // === Eventos UI ===
+  elQ.addEventListener('keydown', (e)=>{ if (e.key==='Enter') applyFilters(); });
+  elClear.addEventListener('click', ()=>{ elQ.value=''; ACTIVE_CHIPS.clear(); document.querySelectorAll('.chip.active').forEach(x=>x.classList.remove('active')); applyFilters(); });
+  elRows.addEventListener('change', ()=>{ PER_PAGE = parseInt(elRows.value,10) || 12; PAGE = 1; render(); });
+  elReload.addEventListener('click', init);
+  elPrev.addEventListener('click', ()=>{ if (PAGE>1){ PAGE--; render(); } });
+  elNext.addEventListener('click', ()=>{ const pages = Math.max(1, Math.ceil(VISIBLE.length/PER_PAGE)); if (PAGE<pages){ PAGE++; render(); } });
 
-    // Selección automática de columna "típica"
-    const suggested = pickCategoryColumn(COLS) || COLS[0];
-    elGroupBy.value = suggested;
-
-    const makeData = () => {
-      const key = elGroupBy.value;
-      const counts = new Map();
-      for (const row of VISIBLE_ROWS) {
-        let k = (row[key] ?? '').toString().trim();
-        if (!k) k = '(vacío)';
-        counts.set(k, (counts.get(k) || 0) + 1);
-      }
-      // Top 12
-      const sorted = [...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12);
-      return {
-        labels: sorted.map(d=>d[0]),
-        values: sorted.map(d=>d[1])
-      };
-    };
-
-    function renderChart() {
-      if (CHART) { CHART.destroy(); CHART = null; }
-      const {labels, values} = makeData();
-      if (labels.length === 0) {
-        chartCard.classList.add('hide');
-        return;
-      }
-      chartCard.classList.remove('hide');
-      CHART = new Chart(elChartCanvas, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Cantidad de recursos',
-            data: values
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { display: false },
-            tooltip: { enabled: true }
-          },
-          scales: {
-            x: { ticks: { color: '#a7f3d0' }, grid: { color: '#0f2a22' } },
-            y: { ticks: { color: '#a7f3d0' }, grid: { color: '#0f2a22' } }
-          }
-        }
-      });
-    }
-
-    renderChart();
-    elGroupBy.addEventListener('change', renderChart);
+  // Vista
+  function setView(which){
+    if (which==='cards'){ elCards.hidden=false; elTable.hidden=true; elTabCards.classList.add('active'); elTabTable.classList.remove('active'); }
+    else { elCards.hidden=true; elTable.hidden=false; elTabTable.classList.add('active'); elTabCards.classList.remove('active'); }
   }
+  elTabCards.addEventListener('click', ()=>setView('cards'));
+  elTabTable.addEventListener('click', ()=>setView('table'));
 
-  // Carga
-  async function loadData() {
-    try {
-      elStatus.textContent = '';
-      elCount.textContent = 'Cargando…';
-      elTbody.innerHTML = '';
-      elThead.innerHTML = '';
+  // Fallback local
+  elFile.addEventListener('change', async (e)=>{
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    try{ ingestCSV(text); elStatus.textContent='(Cargado desde archivo local)'; }
+    catch(e){ elStatus.innerHTML = '<span class="error">Error al leer el CSV local.</span>'; }
+  });
+  // Drag & drop
+  ;['dragenter','dragover'].forEach(ev=>document.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); elDrop.classList.add('show'); }));
+  ;['dragleave','drop'].forEach(ev=>document.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); }));
+  document.addEventListener('drop', async (e)=>{
+    const file = e.dataTransfer?.files?.[0]; if (!file) return;
+    const text = await file.text();
+    try{ ingestCSV(text); elStatus.textContent='(Cargado desde archivo local por arrastre)'; }
+    catch(e){ elStatus.innerHTML = '<span class="error">Error al leer el CSV local.</span>'; }
+  });
 
-      // Evitar cache fuerte
-      const url = CSV_URL + (CSV_URL.includes('?') ? '&' : '?') + '_ts=' + Date.now();
-      const res = await fetch(url, { cache: 'no-store' });
-      if (!res.ok) throw new Error('http');
+  // Descargar CSV tal cual (útil para auditoría)
+  elDownload.addEventListener('click', ()=>{ window.open(CSV_URL, '_blank'); });
 
-      const lastMod = res.headers.get('last-modified');
-      if (lastMod) {
-        const d = new Date(lastMod);
-        if (!isNaN(d)) elUpdated.textContent = `Actualizado: ${d.toLocaleString('es-CO')}`;
-      } else {
-        elUpdated.textContent = '';
-      }
-
-      const csvText = await res.text();
-
-      // Parsear CSV con XLSX (maneja comillas/escapes)
-      const wb = XLSX.read(csvText, { type: 'string' });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }); // [{col:val,...}, ...]
-
-      if (!rows.length) {
-        RAW_ROWS = []; COLS = []; LINK_COL = null;
-        elStatus.textContent = 'No se encontraron filas en la tabla.';
-        renderTableHeader(); renderTableBody();
-        chartCard.classList.add('hide');
-        return;
-      }
-
-      // Columnas
-      COLS = Object.keys(rows[0]);
-      RAW_ROWS = rows;
-
-      // Detectar columna de enlace (primera con URLs)
-      LINK_COL = detectLinkColumn(RAW_ROWS, COLS);
-
-      renderTableHeader();
-      VISIBLE_ROWS = [...RAW_ROWS];
-      applySearch();
-      buildChartIfPossible();
-    } catch (e) {
-      console.error(e);
+  async function init(){
+    try{
+      const txt = await loadFromURL();
+      ingestCSV(txt);
+      setView('cards'); // vista por defecto
+      elDrop.classList.remove('show');
+    }catch(e){
       elStatus.innerHTML = '<span class="error">Error al cargar los datos.</span>';
+      // mostrar fallback local
+      elDrop.classList.add('show');
+      setView('table');
       elCount.textContent = '—';
-      elUpdated.textContent = '';
-      chartCard.classList.add('hide');
     }
   }
 
-  // Eventos UI
-  elQ.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') applySearch();
-  });
-  elClear.addEventListener('click', () => {
-    elQ.value = ''; applySearch(); elQ.focus();
-  });
-  elReload.addEventListener('click', () => loadData());
-  elRows.addEventListener('change', () => {
-    ROWS_PER_PAGE = parseInt(elRows.value, 10) || 25;
-    PAGE = 1; renderTableBody();
-  });
-  elPrev.addEventListener('click', () => { if (PAGE>1){ PAGE--; renderTableBody(); }});
-  elNext.addEventListener('click', () => {
-    const totalPages = Math.max(1, Math.ceil(VISIBLE_ROWS.length / ROWS_PER_PAGE));
-    if (PAGE<totalPages){ PAGE++; renderTableBody(); }
-  });
-
-  // Inicio
-  loadData();
+  init();
 })();
 </script>
-
 </body>
 </html>
