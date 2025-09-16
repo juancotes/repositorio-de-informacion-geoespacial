@@ -4,66 +4,116 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Colección de información geoespacial – Gobernanza ambiental</title>
+  <!--
+  =====================================================================================================
+  ⚙️ FUNCIONAMIENTO (DOCUMENTACIÓN INTERNA — NO VISIBLE EN LA APP)
+  -----------------------------------------------------------------------------------------------------
+  OBJETIVO
+  - Hacer que la página se adapte automáticamente cuando se agreguen NUEVAS COLUMNAS en la "tabla pública"
+    (hoja de cálculo), sin tocar el código, manteniendo todas las funciones actuales.
+
+  CONVENCIÓN DE NOMBRES ("código común")
+  - Las columnas de la hoja deben nombrarse con el patrón:
+        [tipo]_[nombre]
+    donde [tipo] ∈ { principal, etiqueta, acceso, oculto }.
+
+  CLASES / TIPOS
+  1) principal_*
+     - Variables troncales del registro. Solo se esperan:
+         principal_titulo, principal_descripcion.
+       (No se aceptan nuevas columnas de clase "principal").
+
+  2) etiqueta_*
+     - Son campos categóricos/etiquetas para clasificar y filtrar (antes: "Categoría", "origen").
+     - Cualquier nueva columna que empiece por etiqueta_ se visualiza como badge en cada tarjeta y
+       genera AUTOMÁTICAMENTE un filtro <select> en la UI.
+       Ejemplos: etiqueta_categoria, etiqueta_origen, etiqueta_temporalidad, etiqueta_region, ...
+
+  3) acceso_*
+     - Son campos de acceso/links (antes: acceso, acceso_secundario, acceso_de_respaldo, rest).
+     - Cada columna acceso_* que contenga una URL válida se renderiza como botón en la tarjeta.
+       Además, cada campo acceso_* crea AUTOMÁTICAMENTE una casilla de filtro ("Con [nombre]")
+       que permite mostrar sólo registros que cuenten con dicho acceso.
+     - Si el nombre exacto es acceso_rest, su botón se marca como "primario" (estilo destacado).
+
+  4) oculto_*
+     - No se muestran en UI ni se usan para filtrar/chips. Se ignoran para renderizado.
+
+  BACKWARD COMPATIBILITY (alias de columnas antiguas)
+  - Para no romper implementaciones previas, si no existe el prefijo de clase, se hace el mapeo:
+      titulo                -> principal_titulo
+      descripcion|description -> principal_descripcion
+      categoria             -> etiqueta_categoria
+      origen|fuente         -> etiqueta_origen
+      acceso|url|enlace     -> acceso_principal
+      acceso_secundario     -> acceso_secundario
+      acceso_de_respaldo|respaldo -> acceso_respaldo
+      rest                  -> acceso_rest
+
+  BÚSQUEDA Y FILTRADO
+  - Búsqueda difusa con Fuse sobre: principal_titulo, principal_descripcion y TODOS los etiqueta_*.
+  - Filtros dinámicos:
+      * Un <select> por cada etiqueta_* (con "todas" + valores únicos).
+      * Un <checkbox> por cada acceso_* ("Con [nombre]": requiere valor no vacío).
+  - Query avanzada desde la barra de búsqueda con prefijos:
+      etiqueta.<campo>:valor      (p. ej. etiqueta.categoria:bosque)
+      acceso.<campo>:si|no        (p. ej. acceso.rest:si)
+    Atajos heredados (por compatibilidad): categoria:, origen:, rest:si|no.
+
+  ORDENACIÓN
+  - "Por relevancia", "A–Z por título" y, adicionalmente, primeras etiquetas para ordenar (p. ej. "Por categoría").
+
+  CHIPS
+  - Se generan a partir de las 2 etiquetas más frecuentes y sus valores principales.
+
+  NOTAS
+  - No se imprime esta documentación en la interfaz visible.
+  - Sustituye DATA_URL por tu CSV público si cambia la hoja.
+  =====================================================================================================
+  -->
+
   <!-- Dependencias: PapaParse (CSV) y Fuse.js (búsqueda difusa) -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
   <style>
     :root{
-      --bg: #06150f;          /* fondo muy oscuro verdoso */
-      --panel: #0b2018;       /* paneles */
-      --muted: #94a3b8;       /* texto atenuado */
-      --text: #e6f4ef;        /* texto principal */
-      --accent: #0a784f;      /* verde principal */
-      --accent-ink:#0a5e41;   /* verde tinta */
-      --chip:#103524;         /* chips */
-      --border:#153c2a;       /* bordes suaves */
-      --warn:#eab308;         /* aviso */
-      --err:#ef4444;          /* error */
+      --bg: #06150f;
+      --panel: #0b2018;
+      --muted: #94a3b8;
+      --text: #e6f4ef;
+      --accent: #0a784f;
+      --accent-ink:#0a5e41;
+      --chip:#103524;
+      --border:#153c2a;
+      --warn:#eab308;
+      --err:#ef4444;
     }
     html,body{height:100%}
     body{
       margin:0; background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
       display:flex; flex-direction:column; min-height:100vh;
     }
-    header{
-      background: linear-gradient(180deg, rgba(10,120,79,0.25), rgba(10,120,79,0));
-      border-bottom:1px solid var(--border);
-    }
+    header{ background: linear-gradient(180deg, rgba(10,120,79,0.25), rgba(10,120,79,0)); border-bottom:1px solid var(--border); }
     .wrap{ max-width:1100px; margin:0 auto; padding: 16px; }
     .header-inner{ display:flex; align-items:center; gap:16px; }
-    .logo{
-      width:44px; height:44px; border-radius:10px; background:#123a29; border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
-      overflow:hidden;
-    }
+    .logo{ width:44px; height:44px; border-radius:10px; background:#123a29; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; overflow:hidden; }
     .logo img{ width:100%; height:100%; object-fit:cover; display:block; }
     h1{ font-size: clamp(18px, 4vw, 24px); margin:0; font-weight:700; letter-spacing:0.2px; }
     .tagline{ color:var(--muted); font-size:14px; margin-top:4px }
 
     main{ flex:1; }
-    .hero{
-      display:grid; place-items:center; padding: 40px 16px 8px;
-    }
-    .search-card{
-      width:min(920px, 100%); background:var(--panel); border:1px solid var(--border); border-radius:18px; box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-      padding: 22px; position:relative;
-    }
+    .hero{ display:grid; place-items:center; padding: 40px 16px 8px; }
+    .search-card{ width:min(920px, 100%); background:var(--panel); border:1px solid var(--border); border-radius:18px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); padding: 22px; position:relative; }
     .search-row{ display:flex; gap:10px; align-items:center; }
-    .search-row input[type="search"]{
-      flex:1; background:#05120c; border:1px solid var(--border); color:var(--text);
-      padding:14px 16px; border-radius:12px; outline:none; font-size:16px;
-    }
-    .search-row button{
-      background:var(--accent); color:#fff; border:none; padding:14px 18px; border-radius:12px; font-weight:600; cursor:pointer;
-    }
+    .search-row input[type="search"]{ flex:1; background:#05120c; border:1px solid var(--border); color:var(--text); padding:14px 16px; border-radius:12px; outline:none; font-size:16px }
+    .search-row button{ background:var(--accent); color:#fff; border:none; padding:14px 18px; border-radius:12px; font-weight:600; cursor:pointer }
     .search-row button:disabled{ opacity:0.6; cursor:not-allowed }
 
     .helper{ color:var(--muted); font-size:13px; margin-top:8px; line-height:1.4 }
     .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px }
     .chip{ background:var(--chip); border:1px solid var(--border); padding:6px 10px; border-radius:999px; font-size:12px; color:#cfe9df }
 
-    .filters{
-      width:min(920px, 100%); margin:12px auto 0; display:grid; grid-template-columns: repeat(12, 1fr); gap:10px; padding: 0 2px;
-    }
+    .filters{ width:min(920px, 100%); margin:12px auto 0; display:grid; grid-template-columns: repeat(12, 1fr); gap:10px; padding: 0 2px }
     .filter{ grid-column: span 6; }
     @media (min-width: 860px){ .filter{ grid-column: span 3; } }
     select, .check{ width:100%; background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:12px; padding:12px; font-size:14px }
@@ -87,14 +137,13 @@
 
     .error{ background:#230b0b; border:1px solid #501c1c; color:#ffdddd; padding:12px 14px; border-radius:12px; margin: 10px auto; width:min(920px, 100%) }
 
-    footer{ border-top:1px solid var(--border); color:var(--muted); padding:18px 16px; }
+    footer{ border-top:1px solid var(--border); color:var(--muted); padding:18px 16px }
   </style>
 </head>
 <body>
   <header>
     <div class="wrap header-inner">
       <div class="logo" title="Logo (cárgalo como ./logo.png en el repo)">
-        <!-- Espacio para logo institucional -->
         <img id="app-logo" src="./logo.png" alt="Logo" onerror="this.style.display='none'"/>
       </div>
       <div>
@@ -108,7 +157,7 @@
     <section class="hero">
       <div class="search-card">
         <div class="search-row">
-          <input id="q" type="search" placeholder="Buscar por título, descripción, categoría, origen… p. ej. ‘bosque’ o ‘IGAC’" aria-label="Buscar" />
+          <input id="q" type="search" placeholder="Buscar por título, descripción o etiquetas… p. ej. ‘bosque’ o ‘IGAC’" aria-label="Buscar" />
           <button id="go">Buscar</button>
         </div>
         <div class="helper">
@@ -116,34 +165,13 @@
           <a href="https://docs.google.com/spreadsheets/d/1z8filW64tTid-UrH0IxM-YYpqKwVfOizQjpIXrt5f5s/edit?usp=sharing" target="_blank">plantilla</a> 
           , escribiéndonos a selvayconflicto@urosario.edu.co</a>.
           <br>
-          Hecho por <a href="https://juancotes.github.io/Sebastian-Cotes-Ontibon/" target="_blank">Sebastián Cotes-Ontibón</a> Agradecemos que nos compartas :) 
-
+          Hecho por <a href="https://juancotes.github.io/Sebastian-Cotes-Ontibon/" target="_blank">Sebastián Cotes-Ontibón</a> Agradecemos que nos compartas :)
         </div>
         <div class="chips" id="chips"></div>
       </div>
     </section>
 
-    <section class="filters">
-      <div class="filter">
-        <select id="f-categoria">
-          <option value="">Categoría — todas</option>
-        </select>
-      </div>
-      <div class="filter">
-        <select id="f-origen">
-          <option value="">Origen — todos</option>
-        </select>
-      </div>
-      <div class="filter">
-        <label class="check"><input type="checkbox" id="f-rest"> Tiene servicio REST</label>
-      </div>
-      <div class="filter">
-        <label class="check"><input type="checkbox" id="f-secundario"> Con acceso secundario</label>
-      </div>
-      <div class="filter">
-        <label class="check"><input type="checkbox" id="f-respaldo"> Con acceso de respaldo</label>
-      </div>
-    </section>
+    <section class="filters" id="filters"></section>
 
     <div class="bar">
       <div class="count" id="count">Cargando…</div>
@@ -152,7 +180,7 @@
         <select id="sort">
           <option value="relevance">Por relevancia</option>
           <option value="titulo">A–Z por título</option>
-          <option value="categoria">Por categoría</option>
+          <!-- opciones por etiquetas se añadirán dinámicamente -->
         </select>
       </div>
     </div>
@@ -163,9 +191,9 @@
 
   <footer>
     <div class="wrap">
-    <div style="font-size:13px">
-      Hecho por <a href="https://juancotes.github.io/Sebastian-Cotes-Ontibon/" target="_blank">Sebastián Cotes-Ontibón</a>
-    </div>
+      <div style="font-size:13px">
+        Hecho por <a href="https://juancotes.github.io/Sebastian-Cotes-Ontibon/" target="_blank">Sebastián Cotes-Ontibón</a>
+      </div>
     </div>
   </footer>
 
@@ -178,6 +206,7 @@ const DATA_URL = 'https://docs.google.com/spreadsheets/d/1Smop4rx0K4pj5sHXD19DE3
 const deaccent = (s='') => s.normalize('NFD').replace(/\p{Diacritic}/gu,'');
 const by = f => (a,b) => (f(a) > f(b)) ? 1 : (f(a) < f(b) ? -1 : 0);
 const debounce = (fn, ms=200) => { let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); }};
+const isURL = (v='') => /^https?:\/\//i.test(String(v).trim());
 
 // Expandir sinónimos sencillos para búsqueda 
 const THESAURUS = {
@@ -185,61 +214,71 @@ const THESAURUS = {
   suelo:["edafico","edáfico"], coberturas:["land cover","cobertura"], indice:["índice"], carreteras:["vías","vias"],
 };
 
-// Detección de filtros en la query: categoria:, origen:, rest:
-function parseQuery(raw){
-  const tokens = raw.trim().split(/\s+/);
-  const filters = { categoria:"", origen:"", rest:null };
-  const restYes = new Set(['si','sí','true','1','yes']);
-  const restNo = new Set(['no','false','0']);
-  const remain = [];
-  for(const t of tokens){
-    const [k,v] = t.split(":");
-    if(!v){ remain.push(t); continue; }
-    const key = deaccent(k.toLowerCase());
-    const val = v.toLowerCase();
-    if(key === 'categoria' || key==='cat') filters.categoria = val;
-    else if(key === 'origen' || key==='org') filters.origen = val;
-    else if(key === 'rest') {
-      if(restYes.has(val)) filters.rest = true; else if(restNo.has(val)) filters.rest = false;
-    } else remain.push(t);
-  }
-  return { text: remain.join(' '), filters };
-}
-
 function extractYear(str=''){
   const m = String(str).match(/\b(19\d{2}|20\d{2})\b/);
   return m ? m[1] : '';
 }
 
-function normalizeRecord(rec){
-  // Normaliza llaves y añade campos derivados
-  const out = {};
-  for (const [k,vRaw] of Object.entries(rec)){
-    const key = deaccent(String(k).trim().toLowerCase())
-      .replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
-    const v = (vRaw==null) ? '' : String(vRaw).trim();
-    out[key] = v;
+// === Clasificación de columnas (convención dinámica + alias heredados) ===
+const TYPES = new Set(['principal','etiqueta','acceso','oculto']);
+function normalizeHeader(h){
+  return deaccent(String(h).trim().toLowerCase())
+    .replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+}
+function classifyHeader(rawKey){
+  const key = normalizeHeader(rawKey);
+  const m = key.match(/^([a-z]+)_(.+)$/);
+  if(m && TYPES.has(m[1])){
+    return { type:m[1], field:m[2] };
   }
-  // Aliases esperados según tu hoja ejemplo
-  out.titulo = out.titulo || out.title || '';
-  out.descripcion = out.descripcion || out.description || '';
-  out.categoria = out.categoria || out.categoria_ || out['categor_a'] || '';
-  out.origen = out.origen || out.fuente || '';
-  out.acceso = out.acceso || out.url || '';
-  out.acceso_secundario = out['acceso_secundario'] || '';
-  out.acceso_respaldo = out['acceso_de_respaldo'] || out.respaldo || '';
-  out.rest = out.rest || '';
-  out.anio = extractYear(out.titulo) || extractYear(out.descripcion);
-  out._concat = [out.titulo, out.descripcion, out.categoria, out.origen].filter(Boolean).join(' \n ');
+  // Aliases para compatibilidad
+  if(key==='titulo') return { type:'principal', field:'titulo' };
+  if(key==='descripcion' || key==='description') return { type:'principal', field:'descripcion' };
+  if(key==='categoria') return { type:'etiqueta', field:'categoria' };
+  if(key==='origen' || key==='fuente') return { type:'etiqueta', field:'origen' };
+  if(key==='acceso' || key==='url' || key==='enlace') return { type:'acceso', field:'principal' };
+  if(key==='acceso_secundario') return { type:'acceso', field:'secundario' };
+  if(key==='acceso_de_respaldo' || key==='respaldo') return { type:'acceso', field:'respaldo' };
+  if(key==='rest') return { type:'acceso', field:'rest' };
+  // Por defecto lo tratamos como etiqueta si llega sin prefijo, para mantener descubribilidad
+  return { type:'etiqueta', field:key };
+}
+
+function normalizeRecord(rec){
+  const out = {
+    principal:{ titulo:'', descripcion:'' },
+    etiqueta:{},
+    acceso:{},
+    oculto:{},
+    _concat:''
+  };
+  for(const [rawKey, vRaw] of Object.entries(rec)){
+    const val = (vRaw==null) ? '' : String(vRaw).trim();
+    const {type, field} = classifyHeader(rawKey);
+    if(type==='principal'){
+      if(field==='titulo' || field==='descripcion') out.principal[field] = val;
+    } else if(type==='etiqueta'){
+      out.etiqueta[field] = val;
+    } else if(type==='acceso'){
+      out.acceso[field] = val;
+    } else if(type==='oculto'){
+      out.oculto[field] = val; // no se usa visualmente
+    }
+  }
+  // Derivados
+  out.anio = extractYear(out.principal.titulo) || extractYear(out.principal.descripcion);
+  out._concat = [out.principal.titulo, out.principal.descripcion, ...Object.values(out.etiqueta)].filter(Boolean).join(' \n ');
   return out;
 }
 
 function uniqueSorted(arr){ return Array.from(new Set(arr.filter(Boolean))).sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'})); }
 
 // === Estado ===
-let RAW = [];      // registros normalizados
-let FUSE = null;   // índice de búsqueda
+let RAW = [];            // registros normalizados
+let FUSE = null;         // índice de búsqueda
 let LAST_RESULTS = [];
+let LABEL_FIELDS = [];   // nombres de campos dentro de etiqueta_*
+let ACCESS_FIELDS = [];  // nombres de campos dentro de acceso_*
 
 // === Carga de datos ===
 function loadCSV(){
@@ -251,6 +290,7 @@ function loadCSV(){
       complete: (res)=>{
         try{
           RAW = res.data.map(normalizeRecord);
+          deriveSchemas();
           buildFacets();
           buildFuse();
           resolve(RAW);
@@ -261,13 +301,24 @@ function loadCSV(){
   });
 }
 
+function deriveSchemas(){
+  // Detectar todos los campos presentes en etiqueta_* y acceso_*
+  const labelSet = new Set();
+  const accessSet = new Set();
+  for(const r of RAW){
+    Object.keys(r.etiqueta).forEach(k=>labelSet.add(k));
+    Object.keys(r.acceso).forEach(k=>accessSet.add(k));
+  }
+  LABEL_FIELDS = Array.from(labelSet);
+  ACCESS_FIELDS = Array.from(accessSet);
+}
+
 function buildFuse(){
   const keys = [
-    {name:'titulo', weight:0.5},
-    {name:'descripcion', weight:0.25},
-    {name:'categoria', weight:0.15},
-    {name:'origen', weight:0.10},
+    {name:'principal.titulo', weight:0.55},
+    {name:'principal.descripcion', weight:0.25},
   ];
+  for(const lf of LABEL_FIELDS){ keys.push({ name:`etiqueta.${lf}`, weight: Math.max(0.1, 0.2 / LABEL_FIELDS.length) }); }
   FUSE = new Fuse(RAW, {
     includeScore:true,
     includeMatches:false,
@@ -278,31 +329,108 @@ function buildFuse(){
   });
 }
 
+// Construcción dinámica de filtros (selects para etiquetas / checks para accesos)
 function buildFacets(){
-  const cats = uniqueSorted(RAW.map(r=>r.categoria));
-  const orgs = uniqueSorted(RAW.map(r=>r.origen));
-  const selCat = document.getElementById('f-categoria');
-  const selOrg = document.getElementById('f-origen');
-  for(const v of cats){ const o=document.createElement('option'); o.value=v; o.textContent=v; selCat.appendChild(o); }
-  for(const v of orgs){ const o=document.createElement('option'); o.value=v; o.textContent=v; selOrg.appendChild(o); }
+  const root = document.getElementById('filters');
+  root.innerHTML = '';
 
-  // Chips rápidas (las 6 primeras combinando categorías y orígenes más frecuentes)
-  const chips = document.getElementById('chips');
-  chips.innerHTML='';
-  const freq = (list)=> Object.entries(list.reduce((acc,x)=>{acc[x]=(acc[x]||0)+1; return acc;},{}))
-                      .sort((a,b)=>b[1]-a[1]).map(([k])=>k).slice(0,3);
-  const topCats = freq(RAW.map(r=>r.categoria).filter(Boolean));
-  const topOrgs = freq(RAW.map(r=>r.origen).filter(Boolean));
-  for(const c of topCats){ const s=document.createElement('span'); s.className='chip'; s.textContent=c; s.onclick=()=>applyQuickFilter('categoria',c); chips.appendChild(s);}
-  for(const o of topOrgs){ const s=document.createElement('span'); s.className='chip'; s.textContent=o; s.onclick=()=>applyQuickFilter('origen',o); chips.appendChild(s);}
+  // SELECTS por etiqueta_*
+  for(const lf of LABEL_FIELDS){
+    const wrap = document.createElement('div'); wrap.className = 'filter';
+    const sel = document.createElement('select'); sel.id = `f-etiqueta-${lf}`;
+    const label = lf.replace(/_/g,' ');
+    const any = document.createElement('option'); any.value=''; any.textContent = `${capitalize(label)} — todas`;
+    sel.appendChild(any);
+    const vals = uniqueSorted(RAW.map(r=>r.etiqueta[lf]||''));
+    for(const v of vals){ if(!v) continue; const o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); }
+    wrap.appendChild(sel);
+    root.appendChild(wrap);
+    sel.onchange = runSearch;
+  }
+
+  // CHECKBOXES por acceso_*
+  for(const af of ACCESS_FIELDS){
+    const wrap = document.createElement('div'); wrap.className = 'filter';
+    const lab = document.createElement('label'); lab.className='check'; lab.htmlFor = `f-acceso-${af}`;
+    const cb = document.createElement('input'); cb.type='checkbox'; cb.id = `f-acceso-${af}`;
+    lab.appendChild(cb);
+    const nice = capitalize(af.replace(/_/g,' '));
+    lab.appendChild(document.createTextNode(` Con ${nice}`));
+    wrap.appendChild(lab);
+    root.appendChild(wrap);
+    cb.onchange = runSearch;
+  }
+
+  // Construir chips rápidas: tomar las 2 etiquetas con más cobertura
+  const chips = document.getElementById('chips'); chips.innerHTML='';
+  const rankedLabelFields = LABEL_FIELDS
+    .map(f=>({ f, coverage: RAW.reduce((n,r)=> n + (r.etiqueta[f]?1:0), 0) }))
+    .sort((a,b)=> b.coverage - a.coverage)
+    .slice(0,2)
+    .map(x=>x.f);
+  for(const f of rankedLabelFields){
+    const topVals = topKFreq(RAW.map(r=>r.etiqueta[f]).filter(Boolean), 3);
+    for(const v of topVals){ const chip=document.createElement('span'); chip.className='chip'; chip.textContent=v; chip.onclick=()=>applyQuickFilter(f,v); chips.appendChild(chip);}    
+  }
+
+  // Orden por primeras etiquetas
+  const sort = document.getElementById('sort');
+  const existing = new Set(Array.from(sort.options).map(o=>o.value));
+  rankedLabelFields.forEach((f)=>{
+    const val = `etiqueta:${f}`;
+    if(existing.has(val)) return;
+    const opt = document.createElement('option');
+    opt.value = val;
+    opt.textContent = `Por ${capitalize(f.replace(/_/g,' '))}`;
+    sort.appendChild(opt);
+  });
+  sort.onchange = runSearch;
 }
 
-function applyQuickFilter(type, val){
-  document.getElementById(type==='categoria'?'f-categoria':'f-origen').value = val;
-  runSearch();
+function topKFreq(arr, k){
+  const m = new Map(); for(const x of arr){ m.set(x, (m.get(x)||0)+1); }
+  return Array.from(m.entries()).sort((a,b)=>b[1]-a[1]).slice(0,k).map(([k])=>k);
 }
 
-// Expande términos con sinónimos básicos
+function capitalize(s=''){ return s.charAt(0).toUpperCase()+s.slice(1); }
+
+function applyQuickFilter(field, value){
+  const sel = document.getElementById(`f-etiqueta-${field}`);
+  if(sel){ sel.value = value; runSearch(); }
+}
+
+// Detección de filtros en la query: etiqueta.<campo>:, acceso.<campo>:, y atajos categoria:, origen:, rest:
+function parseQuery(raw){
+  const tokens = raw.trim().split(/\s+/);
+  const filters = { etiqueta:{}, acceso:{}, text:'' };
+  const yes = new Set(['si','sí','true','1','yes']);
+  const no = new Set(['no','false','0']);
+  const remain = [];
+
+  for(const t of tokens){
+    const [k,v] = t.split(":");
+    if(!v){ remain.push(t); continue; }
+    const key = deaccent(k.toLowerCase());
+    const val = v;
+
+    // completos
+    let m = key.match(/^etiqueta\.(.+)$/);
+    if(m){ filters.etiqueta[m[1]] = val; continue; }
+    m = key.match(/^acceso\.(.+)$/);
+    if(m){ if(yes.has(val)) filters.acceso[m[1]] = true; else if(no.has(val)) filters.acceso[m[1]] = false; continue; }
+
+    // atajos heredados
+    if(key==='categoria' || key==='cat'){ filters.etiqueta['categoria'] = val; continue; }
+    if(key==='origen' || key==='org'){ filters.etiqueta['origen'] = val; continue; }
+    if(key==='rest'){ if(yes.has(val)) filters.acceso['rest']=true; else if(no.has(val)) filters.acceso['rest']=false; continue; }
+
+    remain.push(t);
+  }
+  filters.text = remain.join(' ');
+  return filters;
+}
+
+// Búsqueda + filtros + ranking
 function expandTerms(text){
   const words = text.split(/\s+/).map(w=>deaccent(w.toLowerCase()));
   const extra = [];
@@ -310,27 +438,37 @@ function expandTerms(text){
   return words.concat(extra).join(' ');
 }
 
-function filterAndRank(query, facetFilters){
+function filterAndRank(queryText){
+  // Partir filtros de la query y mezclar con facetas UI
+  const qf = parseQuery(queryText);
+
+  // Agregar filtros de selects (etiquetas)
+  for(const lf of LABEL_FIELDS){
+    const sel = document.getElementById(`f-etiqueta-${lf}`);
+    if(sel && sel.value){ qf.etiqueta[lf] = sel.value; }
+  }
+  // Agregar filtros de checks (accesos)
+  for(const af of ACCESS_FIELDS){
+    const cb = document.getElementById(`f-acceso-${af}`);
+    if(cb && cb.checked){ qf.acceso[af] = true; }
+  }
+
   let base = RAW;
-  // Facetas
-  if(facetFilters.categoria){
-    const q = deaccent(facetFilters.categoria.toLowerCase());
-    base = base.filter(r=>deaccent(r.categoria.toLowerCase()).includes(q));
+  // Aplicar filtros etiqueta
+  for(const [lf, val] of Object.entries(qf.etiqueta)){
+    const needle = deaccent(String(val).toLowerCase());
+    base = base.filter(r=>deaccent(String(r.etiqueta[lf]||'').toLowerCase()).includes(needle));
   }
-  if(facetFilters.origen){
-    const q = deaccent(facetFilters.origen.toLowerCase());
-    base = base.filter(r=>deaccent(r.origen.toLowerCase()).includes(q));
+  // Aplicar filtros acceso (solo true: debe tener URL)
+  for(const [af, flag] of Object.entries(qf.acceso)){
+    if(flag===true){ base = base.filter(r=>isURL(r.acceso[af]||'')); }
+    if(flag===false){ base = base.filter(r=>!isURL(r.acceso[af]||'')); }
   }
-  if(facetFilters.rest === true){ base = base.filter(r => r.rest); }
-  if(facetFilters.rest === false){ base = base.filter(r => !r.rest); }
-  if(document.getElementById('f-secundario').checked){ base = base.filter(r => r.acceso_secundario); }
-  if(document.getElementById('f-respaldo').checked){ base = base.filter(r => r.acceso_respaldo); }
 
   // Búsqueda difusa
   let ranked = base;
-  if(query){
-    const expanded = expandTerms(query);
-    // Usamos patrón extendido de Fuse con OR entre palabras
+  if(qf.text){
+    const expanded = expandTerms(qf.text);
     const pattern = expanded.split(/\s+/).filter(Boolean).map(w=>`'${w}`).join(' | ');
     ranked = FUSE.search(pattern).map(x=>x.item).filter(x=> base.includes(x));
   }
@@ -339,9 +477,12 @@ function filterAndRank(query, facetFilters){
 
 function sortResults(list){
   const mode = document.getElementById('sort').value;
-  if(mode==='titulo') return list.slice().sort(by(x=>deaccent(x.titulo.toLowerCase())));
-  if(mode==='categoria') return list.slice().sort(by(x=>deaccent(x.categoria.toLowerCase()+"|"+x.titulo.toLowerCase())));
-  return list; // relevancia = ya vienen ordenados
+  if(mode==='titulo') return list.slice().sort(by(x=>deaccent(x.principal.titulo.toLowerCase())));
+  if(mode.startsWith('etiqueta:')){
+    const f = mode.split(':')[1];
+    return list.slice().sort(by(x=>deaccent(String(x.etiqueta[f]||'').toLowerCase()+"|"+x.principal.titulo.toLowerCase())));
+  }
+  return list; // relevancia por defecto
 }
 
 function render(list){
@@ -349,27 +490,50 @@ function render(list){
   wrap.innerHTML='';
   const count = document.getElementById('count');
   count.textContent = `${list.length} ${list.length===1?'resultado':'resultados'}`;
+
   for(const r of list){
     const card = document.createElement('article');
     card.className = 'card';
-    const h = document.createElement('h3'); h.textContent = r.titulo || 'Sin título';
+
+    const h = document.createElement('h3'); h.textContent = r.principal.titulo || 'Sin título';
+
     const meta = document.createElement('div'); meta.className='meta';
-    if(r.categoria){ const b=document.createElement('span'); b.className='badge'; b.textContent=r.categoria; meta.appendChild(b); }
-    if(r.origen){ const b=document.createElement('span'); b.className='badge'; b.textContent=r.origen; meta.appendChild(b); }
+    // Todas las etiquetas como badges
+    for(const lf of LABEL_FIELDS){
+      const v = r.etiqueta[lf]; if(!v) continue;
+      const b = document.createElement('span'); b.className='badge'; b.textContent = v; meta.appendChild(b);
+    }
     if(r.anio){ const b=document.createElement('span'); b.className='badge'; b.textContent=`Año ${r.anio}`; meta.appendChild(b); }
 
-    const p = document.createElement('div'); p.className='desc'; p.textContent = r.descripcion || '';
+    const p = document.createElement('div'); p.className='desc'; p.textContent = r.principal.descripcion || '';
 
     const links = document.createElement('div'); links.className='links';
-    if(r.acceso){ links.appendChild(linkBtn(r.acceso, 'Abrir')) }
-    if(r.rest){ links.appendChild(linkBtn(r.rest, 'REST', true)) }
-    if(r.acceso_secundario){ links.appendChild(linkBtn(r.acceso_secundario, 'Secundario')) }
-    if(r.acceso_respaldo){ links.appendChild(linkBtn(r.acceso_respaldo, 'Respaldo')) }
-    links.appendChild(copyBtn(r.acceso || r.rest || r.acceso_secundario || r.acceso_respaldo || ''));
+    // Botones por cada acceso_*
+    let firstLink = '';
+    for(const af of ACCESS_FIELDS){
+      const href = r.acceso[af];
+      if(isURL(href)){
+        links.appendChild(linkBtn(href, prettyAccessLabel(af), af==='rest'));
+        if(!firstLink) firstLink = href;
+      }
+    }
+    // botón copiar
+    links.appendChild(copyBtn(firstLink));
 
     card.append(h, meta, p, links);
     wrap.appendChild(card);
   }
+}
+
+function prettyAccessLabel(name){
+  const nice = name.replace(/_/g,' ');
+  // Labels familiares
+  if(name==='rest') return 'REST';
+  if(name==='principal') return 'Abrir';
+  if(name==='secundario') return 'Secundario';
+  if(name==='respaldo') return 'Respaldo';
+  // Capitalizar por defecto
+  return capitalize(nice);
 }
 
 function linkBtn(href, label, primary=false){
@@ -384,24 +548,14 @@ function copyBtn(text){
   const b = document.createElement('button');
   b.className='btn'; b.textContent='Copiar enlace';
   b.onclick = async ()=>{
-    try{ await navigator.clipboard.writeText(text); b.textContent='¡Copiado!'; setTimeout(()=>b.textContent='Copiar enlace', 1200);}catch(e){ b.textContent='Error'; setTimeout(()=>b.textContent='Copiar enlace', 1200); }
+    try{ await navigator.clipboard.writeText(text||''); b.textContent='¡Copiado!'; setTimeout(()=>b.textContent='Copiar enlace', 1200);}catch(e){ b.textContent='Error'; setTimeout(()=>b.textContent='Copiar enlace', 1200); }
   };
   return b;
 }
 
 function runSearch(){
   const raw = document.getElementById('q').value;
-  const { text, filters } = parseQuery(raw);
-  // sumar facetas de UI
-  const uiCat = document.getElementById('f-categoria').value;
-  const uiOrg = document.getElementById('f-origen').value;
-  const uiRest = document.getElementById('f-rest').checked ? true : (document.getElementById('f-rest').indeterminate ? null : false);
-  const merged = {
-    categoria: uiCat || filters.categoria,
-    origen: uiOrg || filters.origen,
-    rest: (filters.rest!==null) ? filters.rest : (document.getElementById('f-rest').checked ? true : null)
-  };
-  let list = filterAndRank(text, merged);
+  let list = filterAndRank(raw);
   list = sortResults(list);
   LAST_RESULTS = list;
   render(list);
@@ -417,20 +571,14 @@ function runSearch(){
     console.error(err);
     document.getElementById('error').style.display='block';
   }
-  // Eventos
+
   const go = document.getElementById('go');
   const q = document.getElementById('q');
-  const fcat = document.getElementById('f-categoria');
-  const forg = document.getElementById('f-origen');
-  const frest = document.getElementById('f-rest');
-  const fsec = document.getElementById('f-secundario');
-  const fres = document.getElementById('f-respaldo');
   const sort = document.getElementById('sort');
 
   go.onclick = runSearch;
   q.addEventListener('input', debounce(runSearch, 200));
-  fcat.onchange = runSearch; forg.onchange = runSearch; sort.onchange = runSearch;
-  frest.onchange = runSearch; fsec.onchange = runSearch; fres.onchange = runSearch;
+  sort.onchange = runSearch;
 
   runSearch();
 })();
