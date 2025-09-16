@@ -179,7 +179,7 @@ const deaccent = (s='') => s.normalize('NFD').replace(/\p{Diacritic}/gu,'');
 const by = f => (a,b) => (f(a) > f(b)) ? 1 : (f(a) < f(b) ? -1 : 0);
 const debounce = (fn, ms=200) => { let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); }};
 
-// Expandir sinónimos sencillos para búsqueda (mejorable con tu dominio)
+// Expandir sinónimos sencillos para búsqueda 
 const THESAURUS = {
   bosque:["forest","bosques"], deforestacion:["deforestation","deforestación"], agua:["hidrografia","río","ríos","hidrica","hídrica"],
   suelo:["edafico","edáfico"], coberturas:["land cover","cobertura"], indice:["índice"], carreteras:["vías","vias"],
