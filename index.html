@@ -512,7 +512,7 @@ function filterAndRank(queryText){
   return ranked;
 }
 
-function sortResults(list){
+  function sortResults(list){
   const mode = document.getElementById('sort').value;
   if(mode==='titulo') return list.slice().sort(by(x=>deaccent(x.principal.titulo.toLowerCase())));
   if(mode.startsWith('etiqueta:')){
@@ -521,7 +521,46 @@ function sortResults(list){
   }
   return list; // relevancia por defecto
 }
+function setSafeBold(el, raw){
+  if (!raw){ el.textContent = ''; return; }
+  const str = String(raw);
 
+  // Si no hay tokens <b>…</b>, imprimimos tal cual
+  const tokens = str.match(/<\/?b>/g);
+  if (!tokens){ el.textContent = str; return; }
+
+  // Si están desbalanceados, mejor mostrar literalmente
+  const opens = tokens.filter(t => t === '<b>').length;
+  const closes = tokens.filter(t => t === '</b>').length;
+  if (opens !== closes){ el.textContent = str; return; }
+
+  const frag = document.createDocumentFragment();
+  const parts = str.split(/(<\/?b>)/g);
+  let bold = false;
+  let strong = null;
+
+  for (const part of parts){
+    if (part === '<b>'){
+      bold = true;
+      strong = document.createElement('strong');
+      frag.appendChild(strong);
+      continue;
+    }
+    if (part === '</b>'){
+      bold = false;
+      strong = null;
+      continue;
+    }
+    if (bold){
+      strong.appendChild(document.createTextNode(part));
+    } else {
+      frag.appendChild(document.createTextNode(part));
+    }
+  }
+
+  el.textContent = '';     // limpiar seguro
+  el.appendChild(frag);    // insertar fragmento
+}
   function render(list){
   const wrap = document.getElementById('results');
   wrap.innerHTML='';
@@ -536,7 +575,9 @@ function sortResults(list){
     for (const nf of LABEL_NOFILTER_FIELDS){ const v=r._etiquetaNoFiltro[nf]; if(v){ const b=document.createElement('span'); b.className='badge'; b.textContent=v; meta.appendChild(b); } }
     if (r.anio){ const b=document.createElement('span'); b.className='badge'; b.textContent=`Año ${r.anio}`; meta.appendChild(b); }
 
-    const p = document.createElement('div'); p.className='desc'; p.textContent = r.principal.descripcion || '';
+    const p = document.createElement('div');
+    p.className = 'desc';
+    setSafeBold(p, r.principal.descripcion || '');
 
     const links = document.createElement('div'); links.className='links';
     let firstLink = '';
