@@ -220,7 +220,8 @@ function extractYear(str=''){
 }
 
 // === Clasificación de columnas (convención dinámica + alias heredados) ===
-const TYPES = new Set(['principal','etiqueta','acceso','oculto','etiquetanofiltro,'accesonofiltro']);
+const TYPES = new Set(['principal','etiqueta','acceso','oculto','etiquetanofiltro','accesonofiltro']);
+
 function normalizeHeader(h){
   return deaccent(String(h).trim().toLowerCase())
     .replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
