@@ -17,27 +17,37 @@
         [tipo]_[nombre]
     donde [tipo] ∈ { principal, etiqueta, acceso, oculto }.
 
-  CLASES / TIPOS
-  1) principal_*
-     - Variables troncales del registro. Solo se esperan:
-         principal_titulo, principal_descripcion.
-       (No se aceptan nuevas columnas de clase "principal").
+CLASES / TIPOS
+1) principal_*
+   - Variables troncales del registro. Solo se esperan:
+       principal_titulo, principal_descripcion.
+     (No se aceptan nuevas columnas de clase "principal".)
 
-  2) etiqueta_*
-     - Son campos categóricos/etiquetas para clasificar y filtrar (antes: "Categoría", "origen").
-     - Cualquier nueva columna que empiece por etiqueta_ se visualiza como badge en cada tarjeta y
-       genera AUTOMÁTICAMENTE un filtro <select> en la UI.
-       Ejemplos: etiqueta_categoria, etiqueta_origen, etiqueta_temporalidad, etiqueta_region, ...
+2) etiqueta_*
+   - Campos categóricos/etiquetas para clasificar y filtrar.
+   - Cada columna etiqueta_* se muestra como badge y genera AUTOMÁTICAMENTE un filtro <select>.
+   - Ejemplos: etiqueta_categoria, etiqueta_origen, etiqueta_temporalidad, etiqueta_region, ...
 
-  3) acceso_*
-     - Son campos de acceso/links (antes: acceso, acceso_secundario, acceso_de_respaldo, rest).
-     - Cada columna acceso_* que contenga una URL válida se renderiza como botón en la tarjeta.
-       Además, cada campo acceso_* crea AUTOMÁTICAMENTE una casilla de filtro ("Con [nombre]")
-       que permite mostrar sólo registros que cuenten con dicho acceso.
-     - Si el nombre exacto es acceso_rest, su botón se marca como "primario" (estilo destacado).
+3) etiquetaNOfiltro_*
+   - Etiquetas “informativas” que se muestran como badge y se incluyen en la búsqueda,
+     pero NO crean controles de filtro, ni chips, ni opciones de orden.
+   - Útiles para metadatos visibles que no deben multiplicar facetas.
+   - Ejemplos: etiquetaNOfiltro_autor, etiquetaNOfiltro_fuente_detallada, ...
 
-  4) oculto_*
-     - No se muestran en UI ni se usan para filtrar/chips. Se ignoran para renderizado.
+4) acceso_*
+   - Campos de acceso/links (antes: acceso, acceso_secundario, acceso_de_respaldo, rest).
+   - Cada acceso_* con URL válida se renderiza como botón y crea AUTOMÁTICAMENTE
+     una casilla de filtro (“Con [nombre]”).
+   - Si el nombre exacto es acceso_rest, su botón se marca como primario (destacado).
+
+5) accesoNOfiltro_*
+   - Links adicionales que se renderizan como botón igual que acceso_*,
+     pero NO crean casillas de filtro en la UI.
+   - Responden a la query avanzada (acceso.<campo>:si|no) igual que acceso_*.
+   - Ejemplos: accesoNOfiltro_api_doc, accesoNOfiltro_pdf_extra, ...
+
+6) oculto_*
+   - No se muestran en la UI ni se usan para filtrar/chips. Se ignoran en el render.
 
   BACKWARD COMPATIBILITY (alias de columnas antiguas)
   - Para no romper implementaciones previas, si no existe el prefijo de clase, se hace el mapeo:
