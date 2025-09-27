@@ -220,7 +220,7 @@ function extractYear(str=''){
 }
 
 // === Clasificación de columnas (convención dinámica + alias heredados) ===
-const TYPES = new Set(['principal','etiqueta','acceso','oculto','etiquetanofiltro']);
+const TYPES = new Set(['principal','etiqueta','acceso','oculto','etiquetanofiltro, ,'accesonofiltro']);
 function normalizeHeader(h){
   return deaccent(String(h).trim().toLowerCase())
     .replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
@@ -250,6 +250,7 @@ function normalizeRecord(rec){
     etiqueta:{},
     _etiquetaNoFiltro:{}, 
     acceso:{},
+    _accesoNoFiltro:{},
     oculto:{},
     _concat:''
   };
@@ -264,6 +265,8 @@ function normalizeRecord(rec){
       out._etiquetaNoFiltro[field] = val;      
     } else if(type==='acceso'){
       out.acceso[field] = val;
+     } else if (type==='accesonofiltro'){       // <— NUEVO
+      out._accesoNoFiltro[field] = val;     
     } else if(type==='oculto'){
       out.oculto[field] = val; // no se usa visualmente
     }
@@ -288,6 +291,7 @@ let LAST_RESULTS = [];
 let LABEL_FIELDS = [];   // nombres de campos dentro de etiqueta_*
 let LABEL_NOFILTER_FIELDS = []; // etiquetaNOfiltro_*
 let ACCESS_FIELDS = [];  // nombres de campos dentro de acceso_*
+let ACCESS_NOFILTER_FIELDS = [];   // accesoNOfiltro_*
 
 // === Carga de datos ===
 function loadCSV(){
@@ -315,6 +319,7 @@ function deriveSchemas(){
   const labelSet = new Set();
   const labelNoFilterSet = new Set();  
   const accessSet = new Set();
+  const accessNoFilterSet = new Set();  
   for(const r of RAW){
     Object.keys(r.etiqueta).forEach(k=>labelSet.add(k));
     Object.keys(r._etiquetaNoFiltro).forEach(k => labelNoFilterSet.add(k));
@@ -323,6 +328,7 @@ function deriveSchemas(){
   LABEL_FIELDS = Array.from(labelSet);
   LABEL_NOFILTER_FIELDS = Array.from(labelNoFilterSet);
   ACCESS_FIELDS = Array.from(accessSet);
+  ACCESS_NOFILTER_FIELDS = Array.from(accessNoFilterSet);  
 }
 
 function buildFuse(){
@@ -503,47 +509,43 @@ function sortResults(list){
   return list; // relevancia por defecto
 }
 
-function render(list){
+  function render(list){
   const wrap = document.getElementById('results');
   wrap.innerHTML='';
-  const count = document.getElementById('count');
-  count.textContent = `${list.length} ${list.length===1?'resultado':'resultados'}`;
+  document.getElementById('count').textContent = `${list.length} ${list.length===1?'resultado':'resultados'}`;
 
-  for(const r of list){
-    const card = document.createElement('article');
-    card.className = 'card';
-
+  for (const r of list){
+    const card = document.createElement('article'); card.className='card';
     const h = document.createElement('h3'); h.textContent = r.principal.titulo || 'Sin título';
 
     const meta = document.createElement('div'); meta.className='meta';
-    // Etiquetas filtrables
-    for(const lf of LABEL_FIELDS){
-      const v = r.etiqueta[lf]; if(!v) continue;
-      const b = document.createElement('span'); b.className='badge'; b.textContent = v; meta.appendChild(b);
-    }
-    //  etiquetas que NO generan filtro
-    for (const nf of LABEL_NOFILTER_FIELDS){
-      const v = r._etiquetaNoFiltro[nf]; if(!v) continue;
-      const b = document.createElement('span'); b.className='badge'; b.textContent = v; meta.appendChild(b);
-    }
-    
-    if(r.anio){ const b=document.createElement('span'); b.className='badge'; b.textContent=`Año ${r.anio}`; meta.appendChild(b); }
+    for (const lf of LABEL_FIELDS){ const v=r.etiqueta[lf]; if(v){ const b=document.createElement('span'); b.className='badge'; b.textContent=v; meta.appendChild(b); } }
+    for (const nf of LABEL_NOFILTER_FIELDS){ const v=r._etiquetaNoFiltro[nf]; if(v){ const b=document.createElement('span'); b.className='badge'; b.textContent=v; meta.appendChild(b); } }
+    if (r.anio){ const b=document.createElement('span'); b.className='badge'; b.textContent=`Año ${r.anio}`; meta.appendChild(b); }
 
     const p = document.createElement('div'); p.className='desc'; p.textContent = r.principal.descripcion || '';
 
     const links = document.createElement('div'); links.className='links';
-    // Botones por cada acceso_*
     let firstLink = '';
-    for(const af of ACCESS_FIELDS){
+
+    // Botones de acceso_* (con checkboxes en filtros)
+    for (const af of ACCESS_FIELDS){
       const href = r.acceso[af];
-      if(isURL(href)){
+      if (isURL(href)){
         links.appendChild(linkBtn(href, prettyAccessLabel(af), af==='rest'));
-        if(!firstLink) firstLink = href;
+        if (!firstLink) firstLink = href;
       }
     }
-    // botón copiar
-    links.appendChild(copyBtn(firstLink));
+    // Botones de accesoNOfiltro_* (SIN checkboxes)
+    for (const nf of ACCESS_NOFILTER_FIELDS){
+      const href = r._accesoNoFiltro[nf];
+      if (isURL(href)){
+        links.appendChild(linkBtn(href, prettyAccessLabel(nf), nf==='rest'));
+        if (!firstLink) firstLink = href;
+      }
+    }
 
+    links.appendChild(copyBtn(firstLink));
     card.append(h, meta, p, links);
     wrap.appendChild(card);
   }
