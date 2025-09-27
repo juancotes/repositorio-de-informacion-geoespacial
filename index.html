@@ -276,6 +276,7 @@ function normalizeRecord(rec){
     ...Object.values(out.etiqueta),
     ...Object.values(out._etiquetaNoFiltro)
   ].filter(Boolean).join(' \n ');
+  return out; 
 }
 
 function uniqueSorted(arr){ return Array.from(new Set(arr.filter(Boolean))).sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'})); }
@@ -312,6 +313,7 @@ function loadCSV(){
 function deriveSchemas(){
   // Detectar todos los campos presentes en etiqueta_* y acceso_*
   const labelSet = new Set();
+  const labelNoFilterSet = new Set();  
   const accessSet = new Set();
   for(const r of RAW){
     Object.keys(r.etiqueta).forEach(k=>labelSet.add(k));
