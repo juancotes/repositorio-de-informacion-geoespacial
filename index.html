@@ -343,36 +343,38 @@ function deriveSchemas(){
   ACCESS_FIELDS = Array.from(accessSet);
   ACCESS_NOFILTER_FIELDS = Array.from(accessNoFilterSet);  
 }
+// Normaliza los valores que indexa Fuse (minúsculas y sin acentos)
+function fuseGetFn(obj, path){
+  const segs = Array.isArray(path) ? path : String(path).split('.');
+  let cur = obj;
+  for (const s of segs){
+    if (cur == null) return '';
+    cur = cur[s];
+  }
+  if (Array.isArray(cur)) cur = cur.join(' ');
+  return deaccent(String(cur || '')).toLowerCase();
+}
 
 function buildFuse(){
+  const dynWeight = Math.max(0.1, 0.2 / ((LABEL_FIELDS.length + LABEL_NOFILTER_FIELDS.length) || 1));
+
   const keys = [
-    {name:'principal.titulo', weight:0.55},
-    {name:'principal.descripcion', weight:0.25},
+    { name:'principal.titulo', weight:0.55 },
+    { name:'principal.descripcion', weight:0.25 },
+    ...LABEL_FIELDS.map(lf => ({ name:`etiqueta.${lf}`,          weight: dynWeight })),
+    ...LABEL_NOFILTER_FIELDS.map(nf => ({ name:`_etiquetaNoFiltro.${nf}`, weight: dynWeight })),
   ];
-  for (const lf of LABEL_FIELDS){
-    keys.push({ name:`etiqueta.${lf}`, weight: Math.max(0.1, 0.2 / (LABEL_FIELDS.length + LABEL_NOFILTER_FIELDS.length || 1)) });
-  }
-  for (const nf of LABEL_NOFILTER_FIELDS){ // <— también buscables
-    keys.push({ name:`_etiquetaNoFiltro.${nf}`, weight: Math.max(0.1, 0.2 / (LABEL_FIELDS.length + LABEL_NOFILTER_FIELDS.length || 1)) });
-  }
-  
+
   FUSE = new Fuse(RAW, {
-    includeScore:true,
-    includeMatches:false,
-    ignoreLocation:true,
-    threshold:0.34,
-    useExtendedSearch:true,
-    getFn: fuseGetFn,                 // <- 🔑 normaliza valores indexados    
-    keys: [
-    {name:'principal.titulo', weight:0.55},
-    {name:'principal.descripcion', weight:0.25},
-    // …y tus etiquetas:
-    ...LABEL_FIELDS.map(lf => ({ name:`etiqueta.${lf}`, weight: Math.max(0.1, 0.2 / (LABEL_FIELDS.length + LABEL_NOFILTER_FIELDS.length || 1)) })),
-    ...LABEL_NOFILTER_FIELDS.map(nf => ({ name:`_etiquetaNoFiltro.${nf}`, weight: Math.max(0.1, 0.2 / (LABEL_FIELDS.length + LABEL_NOFILTER_FIELDS.length || 1)) })),
-  ]
-    
+    includeScore: true,
+    ignoreLocation: true,
+    threshold: 0.34,
+    useExtendedSearch: true,
+    getFn: fuseGetFn,
+    keys
   });
 }
+
 
 // Construcción dinámica de filtros (selects para etiquetas / checks para accesos)
 function buildFacets(){
