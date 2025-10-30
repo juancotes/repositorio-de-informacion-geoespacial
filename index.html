@@ -643,6 +643,9 @@ function setSafeBold(el, raw){
     const permaWrap = document.createElement('div'); permaWrap.className='perma';
     const aPerma = document.createElement('a');
     aPerma.href = permalinkFor(r);
+    aPerma.target = '_blank';             // abre en nueva pestaña
+    aPerma.rel = 'noopener noreferrer';   // 🔒 evita tabnabbing y referer leak
+
     aPerma.className = 'permalink';
     aPerma.title = 'Enlace directo a este recurso';
     aPerma.textContent = '🔗 Enlace';
@@ -700,7 +703,9 @@ function prettyAccessLabel(name){
 
 function linkBtn(href, label, primary=false){
   const a = document.createElement('a');
-  a.href = href; a.target = '_blank'; a.rel='noopener noreferrer';
+  a.href = href; 
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';      // ✅ seguridad también en botones de acceso
   a.className = 'btn' + (primary ? ' primary' : '');
   a.textContent = label;
   return a;
