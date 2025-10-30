@@ -227,6 +227,51 @@ const by = f => (a,b) => (f(a) > f(b)) ? 1 : (f(a) < f(b) ? -1 : 0);
 const debounce = (fn, ms=200) => { let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); }};
 const isURL = (v='') => /^https?:\/\//i.test(String(v).trim());
 
+
+// ——— IDs estables + permalink + botón compartir ———
+function slugify(s=''){
+  return deaccent(String(s).toLowerCase())
+    .replace(/&/g,' y ')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'');
+}
+function djb2(str=''){
+  let h=5381; for(let i=0;i<str.length;i++){ h=((h<<5)+h) + str.charCodeAt(i); h|=0; }
+  return (h>>>0).toString(36);
+}
+function buildRecordId(r){
+  // usa un id explícito si viene en la hoja: oculto_id / id / row_id
+  const explicit = r?.oculto?.id || r?.oculto?.oculto_id || r?.oculto?.row_id;
+  if (explicit) return slugify(String(explicit));
+  // si no, título “slug” + hash corto de (descripcion + primer link válido)
+  const slug = slugify(r?.principal?.titulo || 'sin-titulo');
+  const firstLink = Object.values(r?.acceso||{}).find(v=>isURL(v)) || '';
+  const seed = (r?.principal?.descripcion||'') + '|' + firstLink;
+  return `${slug}-${djb2(seed).slice(0,5)}`;
+}
+function permalinkFor(r){
+  const url = new URL(window.location.href);
+  url.searchParams.set('id', r._id);
+  url.searchParams.delete('q'); // limpia búsqueda previa
+  return url.toString();
+}
+function shareBtn(text){
+  const b = document.createElement('button');
+  b.className='btn'; b.textContent='Compartir';
+  b.onclick = async ()=>{
+    try{
+      await navigator.clipboard.writeText(text||'');
+      b.textContent='¡Copiado!';
+      setTimeout(()=>b.textContent='Compartir', 1200);
+    }catch(e){
+      b.textContent='Error';
+      setTimeout(()=>b.textContent='Compartir', 1200);
+    }
+  };
+  return b;
+}
+
+
 // Expandir sinónimos sencillos para búsqueda 
 const THESAURUS = {
   bosque:["forest","bosques"], deforestacion:["deforestation","deforestación"], agua:["hidrografia","río","ríos","hidrica","hídrica"],
