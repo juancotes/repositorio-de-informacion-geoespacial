@@ -148,6 +148,15 @@ CLASES / TIPOS
     .error{ background:#230b0b; border:1px solid #501c1c; color:#ffdddd; padding:12px 14px; border-radius:12px; margin: 10px auto; width:min(920px, 100%) }
 
     footer{ border-top:1px solid var(--border); color:var(--muted); padding:18px 16px }
+  
+    /* ——— Permalink + highlight (no rompe estilos existentes) ——— */
+  .card .topline{display:flex; align-items:center; gap:10px; justify-content:space-between}
+  .perma{display:flex; align-items:center; gap:8px}
+  .permalink{ text-decoration:none; border:1px solid var(--border); padding:6px 8px; border-radius:10px; font-size:13px; background:transparent; color:#cfe9df }
+  .permalink:hover{ filter:brightness(1.05) }
+  .card.highlight{ outline:2px solid var(--warn); box-shadow:0 0 0 4px rgba(234,179,8,0.15) inset }
+  
+  
   </style>
 </head>
 <body>
@@ -314,6 +323,9 @@ function loadCSV(){
       complete: (res)=>{
         try{
           RAW = res.data.map(normalizeRecord);
+          // ► NUEVO: asigna ID estable a cada registro (no toca normalizeRecord)
+          RAW.forEach(r => { r._id = buildRecordId(r); });
+          
           deriveSchemas();
           buildFacets();
           buildFuse();
@@ -578,7 +590,20 @@ function setSafeBold(el, raw){
 
   for (const r of list){
     const card = document.createElement('article'); card.className='card';
+    card.id = `res-${r._id || ''}`;
+
+    // ——— NUEVO: título + acciones (permalink + compartir)
+    const topl = document.createElement('div'); topl.className='topline';
     const h = document.createElement('h3'); h.textContent = r.principal.titulo || 'Sin título';
+    const permaWrap = document.createElement('div'); permaWrap.className='perma';
+    const aPerma = document.createElement('a');
+    aPerma.href = permalinkFor(r);
+    aPerma.className = 'permalink';
+    aPerma.title = 'Enlace directo a este recurso';
+    aPerma.textContent = '🔗 Enlace';
+    const bShare = shareBtn(permalinkFor(r));
+    permaWrap.append(aPerma, bShare);
+    topl.append(h, permaWrap);
 
     const meta = document.createElement('div'); meta.className='meta';
     for (const lf of LABEL_FIELDS){ const v=r.etiqueta[lf]; if(v){ const b=document.createElement('span'); b.className='badge'; b.textContent=v; meta.appendChild(b); } }
@@ -592,7 +617,7 @@ function setSafeBold(el, raw){
     const links = document.createElement('div'); links.className='links';
     let firstLink = '';
 
-    // Botones de acceso_* (con checkboxes en filtros)
+    // Botones de acceso_* (se mantiene)
     for (const af of ACCESS_FIELDS){
       const href = r.acceso[af];
       if (isURL(href)){
@@ -600,7 +625,7 @@ function setSafeBold(el, raw){
         if (!firstLink) firstLink = href;
       }
     }
-    // Botones de accesoNOfiltro_* (SIN checkboxes)
+    // Botones accesoNOfiltro_* (se mantiene)
     for (const nf of ACCESS_NOFILTER_FIELDS){
       const href = r._accesoNoFiltro[nf];
       if (isURL(href)){
@@ -609,8 +634,10 @@ function setSafeBold(el, raw){
       }
     }
 
+    // Tu botón original (se mantiene tal cual)
     links.appendChild(copyBtn(firstLink));
-    card.append(h, meta, p, links);
+
+    card.append(topl, meta, p, links);
     wrap.appendChild(card);
   }
 }
@@ -670,6 +697,33 @@ function runSearch(){
   q.addEventListener('input', debounce(runSearch, 200));
   sort.onchange = runSearch;
 
+
+
+    // ——— NUEVO: si la URL trae ?id=, mostrar solo ese recurso ———
+  const params = new URLSearchParams(window.location.search);
+  const idParam = params.get('id');
+  if (idParam){
+    const item = RAW.find(r => r._id === idParam);
+    if (item){
+      LAST_RESULTS = [item];
+      render(LAST_RESULTS);
+      requestAnimationFrame(()=>{
+        const el = document.getElementById(`res-${idParam}`);
+        if (el){
+          el.classList.add('highlight');
+          el.scrollIntoView({behavior:'smooth', block:'start'});
+          setTimeout(()=>el.classList.remove('highlight'), 2500);
+        }
+      });
+      return; // no sigue a la búsqueda general
+    }
+  }
+
+
+
+
+  
+  
   runSearch();
 })();
 </script>
