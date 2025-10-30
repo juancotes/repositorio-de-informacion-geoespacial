@@ -169,10 +169,15 @@ CLASES / TIPOS
 </head>
 <body>
   <header>
-    <div class="wrap header-inner">
-      <div class="logo" title="Logo (cárgalo como ./logo.png en el repo)">
-        <img id="app-logo" src="./logo.png" alt="Logo" onerror="this.style.display='none'"/>
-      </div>
+
+    <!-- PARA QUE AL OPRIMIR EN EL LOGO REGRESE AL TRONCO: enlace directo (temporal, es más robusto hacerlo en genérico) al tronco del repositorio -->
+    <a class="logo" 
+       href="https://juancotes.github.io/repositorio-de-informacion-geoespacial/" 
+       title="Volver al repositorio — temporal"
+       aria-label="Volver al repositorio">
+      <img id="app-logo" src="./logo.png" alt="Logo" onerror="this.style.display='none'"/>
+    </a>
+      
       <div>
         <h1>Colección geoespacial para la gobernanza ambiental</h1>
         <div class="tagline">Observatorio de la Amazonia. Busca, filtra y comparte conjuntos de datos relevantes para la gobernanza ambiental.</div>
