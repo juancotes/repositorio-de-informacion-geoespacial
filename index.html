@@ -254,20 +254,28 @@ function djb2(str=''){
   let h=5381; for(let i=0;i<str.length;i++){ h=((h<<5)+h) + str.charCodeAt(i); h|=0; }
   return (h>>>0).toString(36);
 }
-function buildRecordId(r){
-  // usa un id explícito si viene en la hoja: oculto_id / id / row_id
+
+  
+  function buildRecordId(r, rowIndex){
+  // 1) Preferimos SIEMPRE un ID explícito de la hoja:
+  //    columnas sugeridas: oculto_id, oculto_row_id, id_estable, etc.
   const explicit = r?.oculto?.id || r?.oculto?.oculto_id || r?.oculto?.row_id;
-  if (explicit) return slugify(String(explicit));
-  // si no, título “slug” + hash corto de (descripcion + primer link válido)
-  const slug = slugify(r?.principal?.titulo || 'sin-titulo');
-  const firstLink = Object.values(r?.acceso||{}).find(v=>isURL(v)) || '';
-  const seed = (r?.principal?.descripcion||'') + '|' + firstLink;
-  return `${slug}-${djb2(seed).slice(0,5)}`;
+  if (explicit) {
+    // lo normalizamos como slug pero el "significado" lo decide la hoja
+    return slugify(String(explicit));
+  }
+
+  // 2) Fallback: un identificador basado en el índice de fila del CSV.
+  //    OJO: esto es estable siempre que no insertes filas por encima;
+  //    lo ideal sigue siendo usar un oculto_id fijo en la hoja.
+  return `row-${rowIndex + 2}`; // +2 porque la fila 1 es encabezado, el CSV empieza en la 2
 }
+
+  
 function permalinkFor(r){
-  const url = new URL(window.location.href);
+  // siempre parte de la URL base de la app (sin filtros previos)
+  const url = new URL(window.location.origin + window.location.pathname);
   url.searchParams.set('id', r._id);
-  url.searchParams.delete('q'); // limpia búsqueda previa
   return url.toString();
 }
 function shareBtn(text){
@@ -382,10 +390,14 @@ function loadCSV(){
       skipEmptyLines:true,
       complete: (res)=>{
         try{
-          RAW = res.data.map(normalizeRecord);
-          // ► NUEVO: asigna ID estable a cada registro (no toca normalizeRecord)
-          RAW.forEach(r => { r._id = buildRecordId(r); });
-          
+          // normalizamos y guardamos el índice de fila
+          RAW = res.data.map((row, idx) => {
+            const norm = normalizeRecord(row);
+            norm._rowIndex = idx;          // por si lo quieres para debug
+            norm._id = buildRecordId(norm, idx);
+            return norm;
+          });
+
           deriveSchemas();
           buildFacets();
           buildFuse();
@@ -396,6 +408,7 @@ function loadCSV(){
     });
   });
 }
+
 
 function deriveSchemas(){
   // Detectar todos los campos presentes en etiqueta_* y acceso_*
