@@ -255,21 +255,39 @@ function djb2(str=''){
   return (h>>>0).toString(36);
 }
 
-  
+  const USED_IDS = new Set();  // 
   function buildRecordId(r, rowIndex){
   // 1) Preferimos SIEMPRE un ID explícito de la hoja:
   //    columnas sugeridas: oculto_id, oculto_row_id, id_estable, etc.
-  const explicit = r?.oculto?.id || r?.oculto?.oculto_id || r?.oculto?.row_id;
-  if (explicit) {
-    // lo normalizamos como slug pero el "significado" lo decide la hoja
-    return slugify(String(explicit));
+  let base = r?.oculto?.id || r?.oculto?.oculto_id || r?.oculto?.row_id;
+
+  if (base) {
+    let slug = slugify(String(base));
+
+    // Si ya existe, generamos variante estable usando la fila
+    if (USED_IDS.has(slug)) {
+      slug = `${slug}-dup${rowIndex + 2}`;
+      console.warn(`⚠ ID duplicado en hoja para "${base}", se usa "${slug}" (fila ${rowIndex + 2})`);
+    }
+
+    USED_IDS.add(slug);
+    return slug;
   }
 
-  // 2) Fallback: un identificador basado en el índice de fila del CSV.
-  //    OJO: esto es estable siempre que no insertes filas por encima;
-  //    lo ideal sigue siendo usar un oculto_id fijo en la hoja.
-  return `row-${rowIndex + 2}`; // +2 porque la fila 1 es encabezado, el CSV empieza en la 2
+  // 2) Fallback: identificador basado en el índice de fila del CSV.
+  //    OJO: estable solo mientras no se inserten filas por encima.
+  let auto = `row-${rowIndex + 2}`;
+
+  // Por si acaso hubiera colisión también aquí (muy raro, pero blindado)
+  if (USED_IDS.has(auto)) {
+    auto = `${auto}-dup${rowIndex + 2}`;
+    console.warn(`⚠ ID automático duplicado, se usa "${auto}" (fila ${rowIndex + 2})`);
+  }
+
+  USED_IDS.add(auto);
+  return auto;
 }
+
 
   
 function permalinkFor(r){
