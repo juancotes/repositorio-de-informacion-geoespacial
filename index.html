@@ -775,6 +775,8 @@ function setSafeBold(el, raw){
 let MAP = null;
 let MAP_BASE = null;
 let MAP_ACTIVE_LAYER = null;
+  let CURRENT_RECORD_FOR_MAP = null; // 🔹 NUEVO: registro actualmente abierto en el visor
+
 
 function ensureMapInstance(){
   if (typeof L === 'undefined'){
@@ -887,22 +889,50 @@ function createLayerForService(url) {
     // WMS
     if (type === 'wms') {
       let base = url;
-      try { base = url.split('?')[0]; } catch (_){}
       let layersParam = '';
+    
       try {
         const p = new URL(url);
+        // base: solo el endpoint, sin parámetros
+        base = p.origin + p.pathname;
+    
         const sp = p.searchParams;
+        // si ya viene LAYERS en la URL, lo respetamos
         layersParam = sp.get('layers') || sp.get('LAYERS') || '';
-      } catch (_){}
+    
+        const req = (sp.get('request') || sp.get('REQUEST') || '').toLowerCase();
+        // si era un GetCapabilities, ignoramos ese request y nos quedamos solo con el endpoint
+        if (req === 'getcapabilities') {
+          // aquí no hacemos nada especial, solo nos aseguramos de usar base sin query
+          // layersParam se quedará vacío y lo resolveremos más abajo
+        }
+      } catch (_){
+        base = url.split('?')[0];
+      }
+    
+      // 🔹 Si seguimos sin LAYERS, intentamos leerlo de la fila (columna oculta de la hoja)
+      if (!layersParam && CURRENT_RECORD_FOR_MAP && CURRENT_RECORD_FOR_MAP.oculto) {
+        layersParam =
+          CURRENT_RECORD_FOR_MAP.oculto.wms_layers ||
+          CURRENT_RECORD_FOR_MAP.oculto.wms_layer ||
+          CURRENT_RECORD_FOR_MAP.oculto.capa_wms ||
+          '';
+      }
+    
+      // 🔹 Último recurso: si aún no hay nada, usamos la capa "0"
+      if (!layersParam) {
+        layersParam = '0';
+      }
+    
       const wmsOptions = {
         format: 'image/png',
-        transparent: true
+        transparent: true,
+        layers: layersParam
       };
-      if (layersParam) {
-        wmsOptions.layers = layersParam;
-      }
+    
       return L.tileLayer.wms(base, wmsOptions);
     }
+
 
     // === ArcGIS REST (MapServer / FeatureServer) ===
     if ((type === 'esri-mapserver' || type === 'esri-featureserver') && L.esri) {
@@ -1086,6 +1116,9 @@ function openMapForRecord(record){
   const overlay = document.getElementById('map-overlay');
   const titleEl = document.getElementById('map-dataset-title');
   const statusEl = document.getElementById('map-status');
+
+    // 🔹 ESTO recuerda qué registro estamos abriendo
+  CURRENT_RECORD_FOR_MAP = record;
 
   if (!overlay){
     console.warn('Overlay de mapa no encontrado.');
