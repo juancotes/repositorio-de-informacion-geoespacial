@@ -782,12 +782,19 @@ function ensureMapInstance(){
     return null;
   }
   if (MAP) return MAP;
+
   const el = document.getElementById('map');
-  if (!el) return null;
+  if (!el) {
+    console.warn('No se encontró el contenedor #map.');
+    return null;
+  }
+
+  // Limpieza defensiva por si algo dejó contenido raro ahí
+  el.innerHTML = '';
 
   MAP = L.map(el, {
-    center:[0,0],
-    zoom:2
+    center:[4, -72],   // 👈 centro aproximado Colombia
+    zoom:5
   });
 
   // Basemap OSM clásico
@@ -799,6 +806,7 @@ function ensureMapInstance(){
     }
   );
   MAP_BASE.addTo(MAP);
+
   return MAP;
 }
 
