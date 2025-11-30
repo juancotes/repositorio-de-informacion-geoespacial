@@ -278,7 +278,7 @@ CLASES / TIPOS
         <div class="helper">
           Puedes reportar novedades y sugerir nuevas variables con esta 
           <a href="https://docs.google.com/spreadsheets/d/1z8filW64tTid-UrH0IxM-YYpqKwVfOizQjpIXrt5f5s/edit?usp=sharing" target="_blank">plantilla</a> 
-          , escribiéndonos a selvayconflicto@urosario.edu.co</a>.
+          , escribiéndonos a selvayconflicto@urosario.edu.co.
           <br>
           Hecho por <a href="https://juancotes.github.io/Sebastian-Cotes-Ontibon/" target="_blank">Sebastián Cotes-Ontibón</a> Agradecemos que nos compartas :)
         </div>
@@ -848,7 +848,27 @@ function createLayerForService(url){
         layersParam = p.get('layers') || p.get('LAYERS') || '';
       }catch(_){}
       return L.tileLayer.wms(base, {
-        layers: layersParam,
+        if (type === 'wms'){
+  let base = url;
+  try { base = url.split('?')[0]; } catch(_){}
+
+  let layersParam = '';
+  try {
+    const p = new URL(url).searchParams;
+    layersParam = p.get('layers') || p.get('LAYERS') || '';
+  } catch(_){}
+
+  const wmsOptions = {
+    format: 'image/png',
+    transparent: true
+  };
+  // 👇 solo añadimos "layers" si realmente hay algo
+  if (layersParam) {
+    wmsOptions.layers = layersParam;
+  }
+
+  return L.tileLayer.wms(base, wmsOptions);
+}
         format:'image/png',
         transparent:true
       });
