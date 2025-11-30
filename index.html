@@ -829,52 +829,43 @@ function detectServiceType(url=''){
 }
 
 // Crea una capa Leaflet según el tipo de servicio
+// Crea una capa Leaflet según el tipo de servicio
 function createLayerForService(url){
   if (typeof L === 'undefined' || !url) return null;
   const type = detectServiceType(url);
 
-  try{
-    if (type === 'xyz' || type === 'unknown' && url.includes('{z}') && url.includes('{x}') && url.includes('{y}')){
-      return L.tileLayer(url, { maxZoom:19 });
-    }
-
-    if (type === 'wms'){
-      // Tomamos la URL base sin parámetros y usamos L.TileLayer.WMS :contentReference[oaicite:1]{index=1}
-      let base = url;
-      try{ base = url.split('?')[0]; }catch(_){}
-      let layersParam = '';
-      try{
-        const p = new URL(url).searchParams;
-        layersParam = p.get('layers') || p.get('LAYERS') || '';
-      }catch(_){}
-      return L.tileLayer.wms(base, {
-        if (type === 'wms'){
-  let base = url;
-  try { base = url.split('?')[0]; } catch(_){}
-
-  let layersParam = '';
   try {
-    const p = new URL(url).searchParams;
-    layersParam = p.get('layers') || p.get('LAYERS') || '';
-  } catch(_){}
-
-  const wmsOptions = {
-    format: 'image/png',
-    transparent: true
-  };
-  // 👇 solo añadimos "layers" si realmente hay algo
-  if (layersParam) {
-    wmsOptions.layers = layersParam;
-  }
-
-  return L.tileLayer.wms(base, wmsOptions);
-}
-        format:'image/png',
-        transparent:true
-      });
+    // XYZ tiles (y fallback básico)
+    if (type === 'xyz' || (type === 'unknown' && url.includes('{z}') && url.includes('{x}') && url.includes('{y}'))){
+      return L.tileLayer(url, { maxZoom: 19 });
     }
 
-    // ArcGIS REST via Esri Leaflet :contentReference[oaicite:2]{index=2}
+    // WMS clásico
+    if (type === 'wms'){
+      // Tomamos la URL base sin parámetros
+      let base = url;
+      try { base = url.split('?')[0]; } catch (_){}
+
+      let layersParam = '';
+      try {
+        const p = new URL(url);
+        const sp = p.searchParams;
+        layersParam = sp.get('layers') || sp.get('LAYERS') || '';
+      } catch (_){}
+
+      const wmsOptions = {
+        format: 'image/png',
+        transparent: true
+      };
+      // Solo añadimos "layers" si realmente hay algo
+      if (layersParam) {
+        wmsOptions.layers = layersParam;
+      }
+
+      return L.tileLayer.wms(base, wmsOptions);
+    }
+
+    // ArcGIS REST via Esri Leaflet
     if ((type === 'esri-mapserver' || type === 'esri-featureserver') && L.esri){
       if (type === 'esri-mapserver'){
         return L.esri.dynamicMapLayer({ url });
@@ -883,6 +874,7 @@ function createLayerForService(url){
       }
     }
 
+    // GeoJSON remoto
     if (type === 'geojson'){
       const g = L.geoJSON();
       fetch(url)
@@ -892,16 +884,19 @@ function createLayerForService(url){
       return g;
     }
 
-    // Último recurso: intentar como tile XYZ
+    // Último recurso: intentar como tile XYZ si tiene {z}/{x}/{y}
     if (url.includes('{z}') && url.includes('{x}') && url.includes('{y}')){
-      return L.tileLayer(url, { maxZoom:19 });
+      return L.tileLayer(url, { maxZoom: 19 });
     }
-  }catch(e){
+
+  } catch (e){
     console.error('Error creando capa para', url, e);
     return null;
   }
+
   return null;
 }
+
 
 // Selecciona URLs de servicio para un registro, con prioridad:
 // 1) acceso_rest
