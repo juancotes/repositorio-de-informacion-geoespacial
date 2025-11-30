@@ -93,6 +93,24 @@ CLASES / TIPOS
   <!-- Dependencias: PapaParse (CSV) y Fuse.js (búsqueda difusa) -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+
+  <!-- Leaflet + Esri Leaflet (mapa interactivo OSM) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha512-p6XIAvG8gCibqkN7T5QzpTUN324j6nU5zTh+VqxGNzcRCjSc5MiNmiY6L0H944sWME1XHlzKwP4hQG1CUGb+AA=="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha512-puBpdR0798OZvTTbP4A8cIWgQhnWcP2SxZL3vZo4PM3Axo4uI+qx0V6B8IrnG7vYU7M5HkP0iH4N03QmPsL1ZQ=="
+    crossorigin=""
+  ></script>
+  <script src="https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js"></script>
+
+
+  
+  
   <style>
     :root{
       --bg: #06150f;
@@ -164,7 +182,70 @@ CLASES / TIPOS
   .permalink:hover{ filter:brightness(1.05) }
   .card.highlight{ outline:2px solid var(--warn); box-shadow:0 0 0 4px rgba(234,179,8,0.15) inset }
   
-  
+
+  /* ====== VISOR DE MAPA (OSM + geoservicios) ====== */
+  .map-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.72);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:9999;
+  }
+  .map-inner{
+    width:min(960px, 96vw);
+    height:min(620px, 88vh);
+    background:var(--panel);
+    border-radius:18px;
+    border:1px solid var(--border);
+    box-shadow:0 18px 45px rgba(0,0,0,0.55);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  .map-header{
+    padding:10px 12px;
+    border-bottom:1px solid var(--border);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .map-title-wrap{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    min-width:0;
+  }
+  .map-title{
+    font-size:14px;
+    font-weight:600;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .map-status{
+    font-size:12px;
+    color:var(--muted);
+  }
+  .map-close{
+    flex-shrink:0;
+  }
+  .map-container{
+    flex:1;
+    min-height:260px;
+  }
+  .map-container .leaflet-container{
+    width:100%;
+    height:100%;
+  }
+  @media (max-width: 640px){
+    .map-inner{ height:80vh; }
+  }
+
+
+    
   </style>
 </head>
 <body>
@@ -222,6 +303,21 @@ CLASES / TIPOS
     <div id="error" class="error" style="display:none">Error al cargar los datos.</div>
     <section id="results" class="results"></section>
   </main>
+  <!-- ===== Overlay para visor de mapa OSM + geoservicio ===== -->
+  <div id="map-overlay" class="map-overlay" aria-hidden="true">
+    <div class="map-inner">
+      <div class="map-header">
+        <div class="map-title-wrap">
+          <div id="map-dataset-title" class="map-title">Vista de mapa</div>
+          <div id="map-status" class="map-status"></div>
+        </div>
+        <button id="map-close" type="button" class="btn map-close">Cerrar</button>
+      </div>
+      <div class="map-container">
+        <div id="map" style="width:100%; height:100%;"></div>
+      </div>
+    </div>
+  </div>
 
   <footer>
     <div class="wrap">
@@ -674,67 +770,435 @@ function setSafeBold(el, raw){
   el.textContent = '';     // limpiar seguro
   el.appendChild(frag);    // insertar fragmento
 }
-  function render(list){
+// ====== VISOR DE MAPA: detección de servicios y Leaflet / Esri Leaflet ======
+
+let MAP = null;
+let MAP_BASE = null;
+let MAP_ACTIVE_LAYER = null;
+
+function ensureMapInstance(){
+  if (typeof L === 'undefined'){
+    console.warn('Leaflet no está disponible.');
+    return null;
+  }
+  if (MAP) return MAP;
+  const el = document.getElementById('map');
+  if (!el) return null;
+
+  MAP = L.map(el, {
+    center:[0,0],
+    zoom:2
+  });
+
+  // Basemap OSM clásico
+  MAP_BASE = L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+      maxZoom:19,
+      attribution:'&copy; OpenStreetMap contributors'
+    }
+  );
+  MAP_BASE.addTo(MAP);
+  return MAP;
+}
+
+// Detecta tipo de geoservicio a partir de la URL
+function detectServiceType(url=''){
+  const u = url.toLowerCase();
+  if (!url) return 'none';
+
+  if (u.includes('service=wms') || u.includes('request=getmap') || /\/wms\b/.test(u)){
+    return 'wms';
+  }
+  if (u.includes('service=wmts') || u.includes('wmts')){
+    return 'wmts';
+  }
+  if (/\/mapserver(\/|$)/.test(u)){
+    return 'esri-mapserver';
+  }
+  if (/\/featureserver(\/|$)/.test(u)){
+    return 'esri-featureserver';
+  }
+  if (u.includes('{z}') && u.includes('{x}') && u.includes('{y}')){
+    return 'xyz';
+  }
+  if (u.endsWith('.geojson') || u.includes('f=geojson')){
+    return 'geojson';
+  }
+  return 'unknown';
+}
+
+// Crea una capa Leaflet según el tipo de servicio
+function createLayerForService(url){
+  if (typeof L === 'undefined' || !url) return null;
+  const type = detectServiceType(url);
+
+  try{
+    if (type === 'xyz' || type === 'unknown' && url.includes('{z}') && url.includes('{x}') && url.includes('{y}')){
+      return L.tileLayer(url, { maxZoom:19 });
+    }
+
+    if (type === 'wms'){
+      // Tomamos la URL base sin parámetros y usamos L.TileLayer.WMS :contentReference[oaicite:1]{index=1}
+      let base = url;
+      try{ base = url.split('?')[0]; }catch(_){}
+      let layersParam = '';
+      try{
+        const p = new URL(url).searchParams;
+        layersParam = p.get('layers') || p.get('LAYERS') || '';
+      }catch(_){}
+      return L.tileLayer.wms(base, {
+        layers: layersParam,
+        format:'image/png',
+        transparent:true
+      });
+    }
+
+    // ArcGIS REST via Esri Leaflet :contentReference[oaicite:2]{index=2}
+    if ((type === 'esri-mapserver' || type === 'esri-featureserver') && L.esri){
+      if (type === 'esri-mapserver'){
+        return L.esri.dynamicMapLayer({ url });
+      } else {
+        return L.esri.featureLayer({ url });
+      }
+    }
+
+    if (type === 'geojson'){
+      const g = L.geoJSON();
+      fetch(url)
+        .then(r => r.json())
+        .then(j => g.addData(j))
+        .catch(err => console.error('Error cargando GeoJSON', err));
+      return g;
+    }
+
+    // Último recurso: intentar como tile XYZ
+    if (url.includes('{z}') && url.includes('{x}') && url.includes('{y}')){
+      return L.tileLayer(url, { maxZoom:19 });
+    }
+  }catch(e){
+    console.error('Error creando capa para', url, e);
+    return null;
+  }
+  return null;
+}
+
+// Selecciona URLs de servicio para un registro, con prioridad:
+// 1) acceso_rest
+// 2) acceso_rest_* (incluyendo respaldo)
+// 3) acceso_respaldo genérico
+// 4) otros acceso_* que parezcan geoservicios
+// 5) accesoNOfiltro_* que parezcan geoservicios
+function getServiceUrlsForRecord(r){
+  const candidates = [];
+
+  function pushCandidate(url, name, priority){
+    if (!isURL(url)) return;
+    candidates.push({ url, name, priority });
+  }
+
+  // 1) acceso_rest explícito
+  if (r.acceso && r.acceso.rest){
+    pushCandidate(r.acceso.rest, 'acceso.rest', 100);
+  }
+
+  // 2) campos acceso_rest_* (ej. acceso_rest_respaldo)
+  if (r.acceso){
+    for (const [k,v] of Object.entries(r.acceso)){
+      if (!v || k === 'rest') continue;
+      const lk = k.toLowerCase();
+      if (lk.startsWith('rest') || lk.includes('rest')){
+        const p = lk.includes('respaldo') ? 80 : 60;
+        pushCandidate(v, `acceso.${k}`, p);
+      }
+    }
+  }
+
+  // 3) respaldo genérico (acceso_respaldo)
+  if (r.acceso && r.acceso.respaldo){
+    pushCandidate(r.acceso.respaldo, 'acceso.respaldo', 50);
+  }
+
+  // 4) otros acceso_* que "huelan" a geoservicio
+  if (r.acceso){
+    for (const [k,v] of Object.entries(r.acceso)){
+      if (!v) continue;
+      if (k === 'rest' || k === 'respaldo') continue;
+      const lk = k.toLowerCase();
+      if (/(wms|wmts|wfs|tiles?|xyz|service)/.test(lk)){
+        pushCandidate(v, `acceso.${k}`, 40);
+      }
+    }
+  }
+
+  // 5) accesoNOfiltro_* geoservicio
+  if (r._accesoNoFiltro){
+    for (const [k,v] of Object.entries(r._accesoNoFiltro)){
+      if (!v) continue;
+      const lk = k.toLowerCase();
+      if (/(rest|wms|wmts|wfs|tiles?|xyz|geojson|service)/.test(lk)){
+        pushCandidate(v, `accesoNOfiltro.${k}`, 30);
+      }
+    }
+  }
+
+  // Ordenar por prioridad
+  candidates.sort((a,b)=> b.priority - a.priority);
+
+  const primary = candidates[0]?.url || '';
+  const backup  = candidates.find(c => c.url !== primary)?.url || '';
+
+  return { primary, backup };
+}
+
+// Añade capa al mapa con fallback a respaldo si hay error
+function attachLayerWithFallback(map, primaryUrl, backupUrl, statusEl){
+  if (!map || !primaryUrl && !backupUrl){
+    if (statusEl) statusEl.textContent = 'Este recurso no tiene servicio de mapas compatible.';
+    return;
+  }
+
+  let triedBackup = false;
+
+  function tryUrl(url, altUrl){
+    if (!url){
+      if (statusEl) statusEl.textContent = 'No se pudo cargar la capa.';
+      return;
+    }
+
+    const layer = createLayerForService(url);
+    if (!layer){
+      if (altUrl && !triedBackup){
+        triedBackup = true;
+        if (statusEl) statusEl.textContent = 'Error con el servicio principal, probando respaldo…';
+        return tryUrl(altUrl, null);
+      }
+      if (statusEl) statusEl.textContent = 'Tipo de servicio no reconocido.';
+      return;
+    }
+
+    if (MAP_ACTIVE_LAYER){
+      try{ map.removeLayer(MAP_ACTIVE_LAYER); }catch(_){}
+    }
+    MAP_ACTIVE_LAYER = layer;
+
+    if (statusEl) statusEl.textContent = 'Cargando capa…';
+
+    const fail = ()=>{
+      try{ map.removeLayer(layer); }catch(_){}
+      if (altUrl && !triedBackup){
+        triedBackup = true;
+        if (statusEl) statusEl.textContent = 'Error con el servicio principal, probando respaldo…';
+        return tryUrl(altUrl, null);
+      }
+      if (statusEl) statusEl.textContent = 'No se pudo cargar la capa.';
+    };
+
+    if (layer.on){
+      layer.on('tileerror', fail);
+      layer.on('requesterror', fail);
+      layer.on('loading', ()=>{ if (statusEl) statusEl.textContent = 'Cargando capa…'; });
+      layer.on('load', e=>{
+        if (statusEl) statusEl.textContent = '';
+        try{
+          if (e && e.bounds){
+            map.fitBounds(e.bounds);
+          }
+        }catch(_){}
+      });
+    }
+
+    layer.addTo(map);
+
+    // Intento adicional de ajustar extensión si la capa expone getBounds()
+    try{
+      if (typeof layer.getBounds === 'function'){
+        const b = layer.getBounds();
+        if (b && b.isValid && b.isValid()){
+          map.fitBounds(b);
+        }
+      }
+    }catch(_){}
+  }
+
+  tryUrl(primaryUrl || backupUrl, primaryUrl && backupUrl ? backupUrl : null);
+}
+
+// Abre el overlay y pinta la capa del registro seleccionado
+function openMapForRecord(record){
+  const overlay = document.getElementById('map-overlay');
+  const titleEl = document.getElementById('map-dataset-title');
+  const statusEl = document.getElementById('map-status');
+
+  if (!overlay){
+    console.warn('Overlay de mapa no encontrado.');
+    return;
+  }
+
+  const { primary, backup } = getServiceUrlsForRecord(record);
+  if (!primary && !backup){
+    alert('Este recurso no declara un acceso_rest ni otro geoservicio compatible.');
+    return;
+  }
+
+  overlay.style.display = 'flex';
+  overlay.setAttribute('aria-hidden','false');
+
+  if (titleEl){
+    titleEl.textContent = record.principal.titulo || 'Vista de mapa';
+  }
+  if (statusEl){
+    statusEl.textContent = 'Preparando mapa…';
+  }
+
+  const map = ensureMapInstance();
+  if (!map){
+    if (statusEl) statusEl.textContent = 'La librería Leaflet no está disponible.';
+    return;
+  }
+
+  // Necesario cuando el mapa estaba oculto
+  setTimeout(()=> map.invalidateSize(), 0);
+
+  attachLayerWithFallback(map, primary, backup, statusEl);
+}
+
+function closeMapOverlay(){
+  const overlay = document.getElementById('map-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'none';
+  overlay.setAttribute('aria-hidden','true');
+}
+
+// Bind de cierre (se hace una sola vez al cargar el script)
+document.addEventListener('DOMContentLoaded', ()=>{
+  const btnClose = document.getElementById('map-close');
+  if (btnClose){
+    btnClose.addEventListener('click', closeMapOverlay);
+  }
+  const overlay = document.getElementById('map-overlay');
+  if (overlay){
+    overlay.addEventListener('click', (e)=>{
+      if (e.target === overlay) closeMapOverlay();
+    });
+  }
+});
+
+  
+function render(list){
   const wrap = document.getElementById('results');
   wrap.innerHTML='';
   document.getElementById('count').textContent = `${list.length} ${list.length===1?'resultado':'resultados'}`;
 
   for (const r of list){
-    const card = document.createElement('article'); card.className='card';
+    const card = document.createElement('article'); 
+    card.className='card';
     card.id = `res-${r._id || ''}`;
 
-    // ——— NUEVO: título + acciones (permalink + compartir)
-    const topl = document.createElement('div'); topl.className='topline';
-    const h = document.createElement('h3'); h.textContent = r.principal.titulo || 'Sin título';
-    const permaWrap = document.createElement('div'); permaWrap.className='perma';
+    // Título + acciones (permalink + compartir)
+    const topl = document.createElement('div'); 
+    topl.className='topline';
+
+    const h = document.createElement('h3'); 
+    h.textContent = r.principal.titulo || 'Sin título';
+
+    const permaWrap = document.createElement('div'); 
+    permaWrap.className='perma';
+
     const aPerma = document.createElement('a');
     aPerma.href = permalinkFor(r);
-    aPerma.target = '_blank';             // abre en nueva pestaña
-    aPerma.rel = 'noopener noreferrer';   // 🔒 evita tabnabbing y referer leak
-
+    aPerma.target = '_blank';
+    aPerma.rel = 'noopener noreferrer';
     aPerma.className = 'permalink';
     aPerma.title = 'Enlace directo a este recurso';
     aPerma.textContent = '🔗 Enlace';
+
     const bShare = shareBtn(permalinkFor(r));
     permaWrap.append(aPerma, bShare);
     topl.append(h, permaWrap);
 
-    const meta = document.createElement('div'); meta.className='meta';
-    for (const lf of LABEL_FIELDS){ const v=r.etiqueta[lf]; if(v){ const b=document.createElement('span'); b.className='badge'; b.textContent=v; meta.appendChild(b); } }
-    for (const nf of LABEL_NOFILTER_FIELDS){ const v=r._etiquetaNoFiltro[nf]; if(v){ const b=document.createElement('span'); b.className='badge'; b.textContent=v; meta.appendChild(b); } }
-    if (r.anio){ const b=document.createElement('span'); b.className='badge'; b.textContent=`Año ${r.anio}`; meta.appendChild(b); }
+    const meta = document.createElement('div'); 
+    meta.className='meta';
+
+    for (const lf of LABEL_FIELDS){
+      const v = r.etiqueta[lf];
+      if (v){
+        const b = document.createElement('span');
+        b.className='badge';
+        b.textContent = v;
+        meta.appendChild(b);
+      }
+    }
+    for (const nf of LABEL_NOFILTER_FIELDS){
+      const v = r._etiquetaNoFiltro[nf];
+      if (v){
+        const b = document.createElement('span');
+        b.className='badge';
+        b.textContent = v;
+        meta.appendChild(b);
+      }
+    }
+    if (r.anio){
+      const b = document.createElement('span');
+      b.className='badge';
+      b.textContent = `Año ${r.anio}`;
+      meta.appendChild(b);
+    }
 
     const p = document.createElement('div');
     p.className = 'desc';
     setSafeBold(p, r.principal.descripcion || '');
 
-    const links = document.createElement('div'); links.className='links';
+    const links = document.createElement('div'); 
+    links.className='links';
     let firstLink = '';
 
-    // Botones de acceso_* (se mantiene)
+    // Botones de acceso_* "normales"
     for (const af of ACCESS_FIELDS){
       const href = r.acceso[af];
       if (isURL(href)){
-        links.appendChild(linkBtn(href, prettyAccessLabel(af), af==='rest'));
-        if (!firstLink) firstLink = href;
-      }
-    }
-    // Botones accesoNOfiltro_* (se mantiene)
-    for (const nf of ACCESS_NOFILTER_FIELDS){
-      const href = r._accesoNoFiltro[nf];
-      if (isURL(href)){
-        links.appendChild(linkBtn(href, prettyAccessLabel(nf), nf==='rest'));
+        links.appendChild(
+          linkBtn(href, prettyAccessLabel(af), af === 'rest')
+        );
         if (!firstLink) firstLink = href;
       }
     }
 
-    // Tu botón original (se mantiene tal cual)
+    // Botones accesoNOfiltro_*
+    for (const nf of ACCESS_NOFILTER_FIELDS){
+      const href = r._accesoNoFiltro[nf];
+      if (isURL(href)){
+        links.appendChild(
+          linkBtn(href, prettyAccessLabel(nf), nf === 'rest')
+        );
+        if (!firstLink) firstLink = href;
+      }
+    }
+
+    // === NUEVO: botón "Ver en mapa (OSM)" usando acceso_rest y respaldo ===
+    const svc = getServiceUrlsForRecord(r);
+    if (svc.primary || svc.backup){
+      const mapBtn = document.createElement('button');
+      mapBtn.type = 'button';
+      mapBtn.className = 'btn';
+      mapBtn.textContent = 'Ver en mapa (OSM)';
+      mapBtn.onclick = () => openMapForRecord(r);
+      links.appendChild(mapBtn);
+
+      // Si no había ningún enlace principal, usamos el REST principal para copiar
+      if (!firstLink && svc.primary){
+        firstLink = svc.primary;
+      }
+    }
+
+    // Botón "Copiar enlace" (como ya tenías)
     links.appendChild(copyBtn(firstLink));
 
     card.append(topl, meta, p, links);
     wrap.appendChild(card);
   }
 }
+
 
 function prettyAccessLabel(name){
   const nice = name.replace(/_/g,' ');
