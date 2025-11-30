@@ -803,79 +803,112 @@ function ensureMapInstance(){
 }
 
 // Detecta tipo de geoservicio a partir de la URL
-function detectServiceType(url=''){
-  const u = url.toLowerCase();
+// --- Normalización específica para ArcGIS REST (consulta -> visualización) ---
+function normalizeArcgisRestUrl(url = '') {
+  if (!url) return url;
+
+  // Intentamos usar URL nativa (más robusto con parámetros)
+  try {
+    const u = new URL(url);
+    let path = u.pathname;
+
+    // Si la ruta termina en /query, /export, /identify, etc., quitamos ese sufijo.
+    // Ejemplos:
+    //  - /MapServer/0/query  -> /MapServer/0
+    //  - /FeatureServer/8/query -> /FeatureServer/8
+    path = path.replace(/\/(query|export|find|identify)$/i, '');
+
+    // También podemos ignorar parámetros típicos de consulta tipo ?f=pjson, ?where=...
+    return u.origin + path;
+  } catch {
+    // Fallback por si no se puede parsear bien como URL
+    return url
+      .replace(/\/(query|export|find|identify)\b.*$/i, '') // corta desde /query en adelante
+      .replace(/\?f=pjson.*$/i, ''); // limpia ?f=pjson si lo hubiera
+  }
+}
+
+
+  
+function detectServiceType(url = '') {
   if (!url) return 'none';
 
-  if (u.includes('service=wms') || u.includes('request=getmap') || /\/wms\b/.test(u)){
-    return 'wms';
-  }
-  if (u.includes('service=wmts') || u.includes('wmts')){
-    return 'wmts';
-  }
-  if (/\/mapserver(\/|$)/.test(u)){
-    return 'esri-mapserver';
-  }
-  if (/\/featureserver(\/|$)/.test(u)){
-    return 'esri-featureserver';
-  }
-  if (u.includes('{z}') && u.includes('{x}') && u.includes('{y}')){
-    return 'xyz';
-  }
-  if (u.endsWith('.geojson') || u.includes('f=geojson')){
+  // Primero normalizamos posibles /query de ArcGIS para no confundir el tipo
+  const normalizedForType = normalizeArcgisRestUrl(url);
+  const u = normalizedForType.toLowerCase();
+
+  // GeoJSON explícito tiene prioridad
+  if (u.endsWith('.geojson') || u.includes('f=geojson')) {
     return 'geojson';
   }
+
+  // WMS / WMTS
+  if (u.includes('service=wms') || u.includes('request=getmap') || /\/wms\b/.test(u)) {
+    return 'wms';
+  }
+  if (u.includes('service=wmts') || u.includes('wmts')) {
+    return 'wmts';
+  }
+
+  // ArcGIS REST
+  if (/\/mapserver(\/|$)/.test(u)) {
+    return 'esri-mapserver';
+  }
+  if (/\/featureserver(\/|$)/.test(u)) {
+    return 'esri-featureserver';
+  }
+
+  // XYZ tiles
+  if (u.includes('{z}') && u.includes('{x}') && u.includes('{y}')) {
+    return 'xyz';
+  }
+
   return 'unknown';
 }
 
-// Crea una capa Leaflet según el tipo de servicio
-// Crea una capa Leaflet según el tipo de servicio
-function createLayerForService(url){
+function createLayerForService(url) {
   if (typeof L === 'undefined' || !url) return null;
   const type = detectServiceType(url);
 
   try {
-    // XYZ tiles (y fallback básico)
-    if (type === 'xyz' || (type === 'unknown' && url.includes('{z}') && url.includes('{x}') && url.includes('{y}'))){
+    // XYZ tiles
+    if (type === 'xyz' || (type === 'unknown' && url.includes('{z}') && url.includes('{x}') && url.includes('{y}'))) {
       return L.tileLayer(url, { maxZoom: 19 });
     }
 
-    // WMS clásico
-    if (type === 'wms'){
-      // Tomamos la URL base sin parámetros
+    // WMS
+    if (type === 'wms') {
       let base = url;
       try { base = url.split('?')[0]; } catch (_){}
-
       let layersParam = '';
       try {
         const p = new URL(url);
         const sp = p.searchParams;
         layersParam = sp.get('layers') || sp.get('LAYERS') || '';
       } catch (_){}
-
       const wmsOptions = {
         format: 'image/png',
         transparent: true
       };
-      // Solo añadimos "layers" si realmente hay algo
       if (layersParam) {
         wmsOptions.layers = layersParam;
       }
-
       return L.tileLayer.wms(base, wmsOptions);
     }
 
-    // ArcGIS REST via Esri Leaflet
-    if ((type === 'esri-mapserver' || type === 'esri-featureserver') && L.esri){
-      if (type === 'esri-mapserver'){
-        return L.esri.dynamicMapLayer({ url });
+    // === ArcGIS REST (MapServer / FeatureServer) ===
+    if ((type === 'esri-mapserver' || type === 'esri-featureserver') && L.esri) {
+      const cleanUrl = normalizeArcgisRestUrl(url); // 👈 aquí limpiamos /query, ?f=pjson, etc.
+
+      if (type === 'esri-mapserver') {
+        return L.esri.dynamicMapLayer({ url: cleanUrl });
       } else {
-        return L.esri.featureLayer({ url });
+        return L.esri.featureLayer({ url: cleanUrl });
       }
     }
 
-    // GeoJSON remoto
-    if (type === 'geojson'){
+    // GeoJSON remoto (incluye ArcGIS query?f=geojson si quisieras usarlo tal cual)
+    if (type === 'geojson') {
       const g = L.geoJSON();
       fetch(url)
         .then(r => r.json())
@@ -884,18 +917,19 @@ function createLayerForService(url){
       return g;
     }
 
-    // Último recurso: intentar como tile XYZ si tiene {z}/{x}/{y}
-    if (url.includes('{z}') && url.includes('{x}') && url.includes('{y}')){
+    // Fallback extra a XYZ
+    if (url.includes('{z}') && url.includes('{x}') && url.includes('{y}')) {
       return L.tileLayer(url, { maxZoom: 19 });
     }
 
-  } catch (e){
+  } catch (e) {
     console.error('Error creando capa para', url, e);
     return null;
   }
 
   return null;
 }
+
 
 
 // Selecciona URLs de servicio para un registro, con prioridad:
