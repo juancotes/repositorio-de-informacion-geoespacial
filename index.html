@@ -838,18 +838,36 @@ function normalizeArcgisRestUrl(url = '') {
   }
 }
 
-
-  
 function detectServiceType(url = '') {
   if (!url) return 'none';
 
-  // Primero normalizamos posibles /query de ArcGIS para no confundir el tipo
+  // Usamos la URL normalizada por si viene con /query, etc.
   const normalizedForType = normalizeArcgisRestUrl(url);
   const u = normalizedForType.toLowerCase();
 
-  // GeoJSON explícito tiene prioridad
+  // GeoJSON explícito
   if (u.endsWith('.geojson') || u.includes('f=geojson')) {
     return 'geojson';
+  }
+
+  // 🔹 ArcGIS REST
+  if (/\/featureserver(\/|$)/.test(u)) {
+    return 'esri-featureserver';
+  }
+  if (/\/mapserver(\/|$)/.test(u)) {
+    return 'esri-mapserver';
+  }
+  if (/\/imageserver(\/|$)/.test(u)) {
+    return 'esri-imageserver';
+  }
+
+  // 🔹 WFS = vectores
+  if (
+    u.includes('service=wfs') ||
+    u.includes('request=getfeature') ||
+    /\/wfs\b/.test(u)
+  ) {
+    return 'wfs';
   }
 
   // WMS / WMTS
@@ -860,14 +878,6 @@ function detectServiceType(url = '') {
     return 'wmts';
   }
 
-  // ArcGIS REST
-  if (/\/mapserver(\/|$)/.test(u)) {
-    return 'esri-mapserver';
-  }
-  if (/\/featureserver(\/|$)/.test(u)) {
-    return 'esri-featureserver';
-  }
-
   // XYZ tiles
   if (u.includes('{z}') && u.includes('{x}') && u.includes('{y}')) {
     return 'xyz';
@@ -876,76 +886,99 @@ function detectServiceType(url = '') {
   return 'unknown';
 }
 
+// Convierte una URL WFS cualquiera en una petición GetFeature en GeoJSON
+function normalizeWfsToGeojson(url = '') {
+  try {
+    const u = new URL(url);
+    const sp = u.searchParams;
+    if (!sp.get('service')) sp.set('service', 'WFS');
+    sp.set('request', 'GetFeature');
+    if (!sp.get('outputFormat')) {
+      // muchos servidores aceptan este formato como GeoJSON
+      sp.set('outputFormat', 'application/json');
+    }
+    return u.toString();
+  } catch {
+    // si algo falla, devolvemos la original
+    return url;
+  }
+}
+
 function createLayerForService(url) {
   if (typeof L === 'undefined' || !url) return null;
+
   const type = detectServiceType(url);
 
   try {
-    // XYZ tiles
+    // ---------- XYZ ----------
     if (type === 'xyz' || (type === 'unknown' && url.includes('{z}') && url.includes('{x}') && url.includes('{y}'))) {
       return L.tileLayer(url, { maxZoom: 19 });
     }
 
-    // WMS
+    // ---------- WFS (vectores) ----------
+    if (type === 'wfs') {
+      const g = L.geoJSON();
+      const geoUrl = normalizeWfsToGeojson(url);
+
+      fetch(geoUrl)
+        .then(r => r.json())
+        .then(j => {
+          g.addData(j);
+        })
+        .catch(err => {
+          console.error('Error cargando WFS como GeoJSON', err);
+        });
+
+      // Devolvemos el layer vacío; se llenará cuando termine el fetch
+      return g;
+    }
+
+    // ---------- WMS genérico ----------
     if (type === 'wms') {
       let base = url;
       let layersParam = '';
-    
+
       try {
         const p = new URL(url);
-        // base: solo el endpoint, sin parámetros
         base = p.origin + p.pathname;
-    
         const sp = p.searchParams;
-        // si ya viene LAYERS en la URL, lo respetamos
         layersParam = sp.get('layers') || sp.get('LAYERS') || '';
-    
-        const req = (sp.get('request') || sp.get('REQUEST') || '').toLowerCase();
-        // si era un GetCapabilities, ignoramos ese request y nos quedamos solo con el endpoint
-        if (req === 'getcapabilities') {
-          // aquí no hacemos nada especial, solo nos aseguramos de usar base sin query
-          // layersParam se quedará vacío y lo resolveremos más abajo
-        }
-      } catch (_){
+      } catch (_) {
         base = url.split('?')[0];
       }
-    
-      // 🔹 Si seguimos sin LAYERS, intentamos leerlo de la fila (columna oculta de la hoja)
-      if (!layersParam && CURRENT_RECORD_FOR_MAP && CURRENT_RECORD_FOR_MAP.oculto) {
-        layersParam =
-          CURRENT_RECORD_FOR_MAP.oculto.wms_layers ||
-          CURRENT_RECORD_FOR_MAP.oculto.wms_layer ||
-          CURRENT_RECORD_FOR_MAP.oculto.capa_wms ||
-          '';
-      }
-    
-      // 🔹 Último recurso: si aún no hay nada, usamos la capa "0"
-      if (!layersParam) {
-        layersParam = '0';
-      }
-    
+
       const wmsOptions = {
         format: 'image/png',
-        transparent: true,
-        layers: layersParam
+        transparent: true
       };
-    
+
+      if (layersParam) {
+        wmsOptions.layers = layersParam;
+      }
+
       return L.tileLayer.wms(base, wmsOptions);
     }
 
-
-    // === ArcGIS REST (MapServer / FeatureServer) ===
-    if ((type === 'esri-mapserver' || type === 'esri-featureserver') && L.esri) {
-      const cleanUrl = normalizeArcgisRestUrl(url); // 👈 aquí limpiamos /query, ?f=pjson, etc.
+    // ---------- ArcGIS REST ----------
+    if ((type === 'esri-mapserver' || type === 'esri-featureserver' || type === 'esri-imageserver') && L.esri) {
+      const cleanUrl = normalizeArcgisRestUrl(url);
 
       if (type === 'esri-mapserver') {
+        // mapa dinámico (imagen renderizada)
         return L.esri.dynamicMapLayer({ url: cleanUrl });
-      } else {
+      }
+
+      if (type === 'esri-featureserver') {
+        // 🔹 vectores (features) dibujados sobre OSM
         return L.esri.featureLayer({ url: cleanUrl });
+      }
+
+      if (type === 'esri-imageserver') {
+        return L.esri.imageMapLayer({ url: cleanUrl });
       }
     }
 
-    // GeoJSON remoto (incluye ArcGIS query?f=geojson si quisieras usarlo tal cual)
+    // ---------- GeoJSON remoto ----------
     if (type === 'geojson') {
       const g = L.geoJSON();
       fetch(url)
@@ -967,7 +1000,6 @@ function createLayerForService(url) {
 
   return null;
 }
-
 
 
 // Selecciona URLs de servicio para un registro, con prioridad:
