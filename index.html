@@ -983,33 +983,33 @@ function createLayerForService(url) {
     // ---------- ArcGIS REST ----------
     // ---------- ArcGIS REST ----------
     if ((type === 'esri-mapserver' || type === 'esri-featureserver' || type === 'esri-imageserver') && L.esri) {
-      const cleanUrl = normalizeArcgisRestUrl(firstUrl);
-
+      let cleanUrl = normalizeArcgisRestUrl(url);
+    
+      // 💡 Si el servicio termina en /FeatureServer o /MapServer SIN layerId, asumimos /0
+      if (/\/featureserver\/?$/i.test(cleanUrl)) {
+        cleanUrl = cleanUrl.replace(/\/?$/,'/0');
+      }
+      if (/\/mapserver\/?$/i.test(cleanUrl)) {
+        cleanUrl = cleanUrl.replace(/\/?$/,'/0');
+      }
+    
       if (type === 'esri-mapserver') {
-        // mapa dinámico (imagen renderizada)
         return L.esri.dynamicMapLayer({ url: cleanUrl });
       }
-
+    
       if (type === 'esri-featureserver') {
-        // Asegurarnos de que apunta a una Feature Layer, no al root del servicio
-        let layerUrl = cleanUrl;
-
-        // Si termina en /FeatureServer (sin /id), asumimos la capa 0 (como hace ArcGIS Pro)
-        if (/\/featureserver\/?$/i.test(layerUrl)) {
-          layerUrl = layerUrl.replace(/\/featureserver\/?$/i, '/FeatureServer/0');
-          console.warn('⚠ URL FeatureServer sin layer id, asumiendo /0:', layerUrl);
-        }
-
-        return L.esri.featureLayer({ url: layerUrl });
+        return L.esri.featureLayer({ url: cleanUrl });
       }
-
+    
       if (type === 'esri-imageserver') {
         return L.esri.imageMapLayer({ url: cleanUrl });
       }
     }
-
     
-   
+         
+    
+        
+       
 
     // ---------- GeoJSON remoto ----------
     if (type === 'geojson') {
