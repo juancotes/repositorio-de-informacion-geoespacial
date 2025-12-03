@@ -336,7 +336,21 @@ const DATA_URL = 'https://docs.google.com/spreadsheets/d/1Smop4rx0K4pj5sHXD19DE3
 const deaccent = (s='') => s.normalize('NFD').replace(/\p{Diacritic}/gu,'');
 const by = f => (a,b) => (f(a) > f(b)) ? 1 : (f(a) < f(b) ? -1 : 0);
 const debounce = (fn, ms=200) => { let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); }};
-const isURL = (v='') => /^https?:\/\//i.test(String(v).trim());
+
+
+// Devuelve una lista de URLs limpias dentro de un string (soporta espacios, comas, saltos de línea)
+function extractUrls(value = '') {
+  const s = String(value).trim();
+  if (!s) return [];
+  return s
+    .split(/[\s,;]+/)                // separa por espacios, comas, punto y coma
+    .map(x => x.trim())
+    .filter(x => /^https?:\/\//i.test(x));
+}
+
+// Reusa esto para validar “hay al menos una URL”
+const isURL = (v = '') => extractUrls(v).length > 0;
+ 
 
 
 // ——— IDs estables + permalink + botón compartir ———
@@ -907,9 +921,16 @@ function normalizeWfsToGeojson(url = '') {
 function createLayerForService(url) {
   if (typeof L === 'undefined' || !url) return null;
 
-  const type = detectServiceType(url);
+  // Normalizamos: si hubiera varias URLs en el mismo campo, tomamos la primera
+  const urls = extractUrls(url);
+  if (!urls.length) return null;
+  const firstUrl = urls[0];
+
+  const type = detectServiceType(firstUrl);
 
   try {
+    // ... y a partir de aquí usa firstUrl en lugar de url ...
+
     // ---------- XYZ ----------
     if (type === 'xyz' || (type === 'unknown' && url.includes('{z}') && url.includes('{x}') && url.includes('{y}'))) {
       return L.tileLayer(url, { maxZoom: 19 });
@@ -960,8 +981,9 @@ function createLayerForService(url) {
     }
 
     // ---------- ArcGIS REST ----------
+    // ---------- ArcGIS REST ----------
     if ((type === 'esri-mapserver' || type === 'esri-featureserver' || type === 'esri-imageserver') && L.esri) {
-      const cleanUrl = normalizeArcgisRestUrl(url);
+      const cleanUrl = normalizeArcgisRestUrl(firstUrl);
 
       if (type === 'esri-mapserver') {
         // mapa dinámico (imagen renderizada)
@@ -969,14 +991,25 @@ function createLayerForService(url) {
       }
 
       if (type === 'esri-featureserver') {
-        // 🔹 vectores (features) dibujados sobre OSM
-        return L.esri.featureLayer({ url: cleanUrl });
+        // Asegurarnos de que apunta a una Feature Layer, no al root del servicio
+        let layerUrl = cleanUrl;
+
+        // Si termina en /FeatureServer (sin /id), asumimos la capa 0 (como hace ArcGIS Pro)
+        if (/\/featureserver\/?$/i.test(layerUrl)) {
+          layerUrl = layerUrl.replace(/\/featureserver\/?$/i, '/FeatureServer/0');
+          console.warn('⚠ URL FeatureServer sin layer id, asumiendo /0:', layerUrl);
+        }
+
+        return L.esri.featureLayer({ url: layerUrl });
       }
 
       if (type === 'esri-imageserver') {
         return L.esri.imageMapLayer({ url: cleanUrl });
       }
     }
+
+    
+   
 
     // ---------- GeoJSON remoto ----------
     if (type === 'geojson') {
