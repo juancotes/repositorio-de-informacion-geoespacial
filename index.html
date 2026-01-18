@@ -1330,13 +1330,13 @@ function render(list){
       }
     }
 
-    // === NUEVO: botón "Ver en mapa (OSM)" usando acceso_rest y respaldo ===
+    // === NUEVO: botón "Ver en mapa (proximamente)" usando acceso_rest y respaldo ===
     const svc = getServiceUrlsForRecord(r);
     if (svc.primary || svc.backup){
       const mapBtn = document.createElement('button');
       mapBtn.type = 'button';
       mapBtn.className = 'btn';
-      mapBtn.textContent = 'Ver en mapa (OSM)';
+      mapBtn.textContent = 'Ver en mapa (proximamente)';
       mapBtn.onclick = () => openMapForRecord(r);
       links.appendChild(mapBtn);
 
