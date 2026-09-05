@@ -78,6 +78,19 @@ CLASES / TIPOS
       acceso.<campo>:si|no        (p. ej. acceso.rest:si)
     Atajos heredados (por compatibilidad): categoria:, origen:, rest:si|no.
 
+  COMPARTIR / ENLACE
+  - “Copiar enlace” copia el permalink estable de la ficha (?id=...). No abre una pestaña nueva.
+  - “Compartir” copia una referencia legible: título + fuente original + crédito de curaduría + permalink.
+  - Para la fuente original se recomienda etiquetaNOfiltro_fuente_original (o etiqueta_fuente_original).
+    Por compatibilidad también se reconocen fuente_detallada, fuente, origen, institucion y autor.
+
+  VISUALIZACIÓN
+  - “Ver mapa” se deriva EXCLUSIVAMENTE de acceso_rest y otros campos cuyo nombre contenga REST.
+  - Los servicios se intentan en orden: REST principal -> REST de respaldo -> siguientes REST declarados.
+  - La capa se valida antes de ocupar espacio en la tarjeta; si fallan todos los REST se muestra
+    “Visualización no disponible” y no se deja un mapa vacío. Si no hay REST, no aparece nada.
+  - Para ArcGIS REST se usa la extensión declarada o consultada; no se asume automáticamente la subcapa /0.
+
   ORDENACIÓN
   - "Por relevancia", "A–Z por título" y, adicionalmente, primeras etiquetas para ordenar (p. ej. "Por categoría").
 
@@ -147,7 +160,7 @@ CLASES / TIPOS
 
     .helper{ color:var(--muted); font-size:13px; margin-top:8px; line-height:1.4 }
     .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px }
-    .chip{ background:var(--chip); border:1px solid var(--border); padding:6px 10px; border-radius:999px; font-size:12px; color:#cfe9df }
+    .chip{ background:var(--chip); border:1px solid var(--border); padding:6px 10px; border-radius:999px; font-size:12px; color:#cfe9df; cursor:pointer; font:inherit }
 
     .filters{ width:min(920px, 100%); margin:12px auto 0; display:grid; grid-template-columns: repeat(12, 1fr); gap:10px; padding: 0 2px }
     .filter{ grid-column: span 6; }
@@ -158,7 +171,10 @@ CLASES / TIPOS
 
     .bar{ width:min(920px, 100%); margin: 14px auto; display:flex; align-items:center; justify-content:space-between; gap:10px; color:var(--muted) }
     .bar .count{ font-size:14px }
+    .bar-actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end }
     .bar .sort{ display:flex; align-items:center; gap:8px }
+    .clear-filters{ color:var(--muted); white-space:nowrap }
+    .clear-filters:disabled{ opacity:.38; cursor:default }
 
     .results{ width:min(920px, 100%); margin: 8px auto 34px; display:grid; gap:10px }
     .card{ background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:16px }
@@ -167,9 +183,26 @@ CLASES / TIPOS
     .badge{ background:#082319; border:1px solid var(--border); color:#c5efdf; padding:5px 8px; border-radius:999px; font-size:12px }
     .desc{ color:#d9efe7; opacity:0.88; font-size:14px; line-height:1.4; white-space:pre-line }
     .links{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px }
-    .btn{ background:transparent; border:1px solid var(--border); color:#d7eee6; padding:8px 10px; border-radius:10px; font-size:13px; text-decoration:none }
-    .btn.primary{ background:var(--accent-ink); color:white; border-color:transparent }
-    .btn:hover{ filter:brightness(1.05) }
+    .btn{ background:transparent; border:1px solid var(--border); color:#d7eee6; padding:8px 10px; border-radius:10px; font-size:13px; text-decoration:none; cursor:pointer; font-family:inherit }
+    /* Acción recomendada: Acceso; si no existe, Acceso de respaldo hereda este estilo. */
+    .btn.primary{ background:var(--accent-ink); color:white; border-color:transparent; font-weight:600 }
+    .btn:hover:not(:disabled){ filter:brightness(1.08) }
+    .btn:disabled{ cursor:not-allowed }
+    .empty-state{ color:var(--muted); border:1px dashed var(--border); border-radius:14px; padding:22px 16px; text-align:center; font-size:14px }
+
+    :is(button, a, input, select):focus-visible{ outline:2px solid var(--warn); outline-offset:2px }
+
+    @media (max-width: 560px){
+      .hero{ padding-top:22px }
+      .search-row{ align-items:stretch }
+      .search-row input[type="search"]{ min-width:0 }
+      .filters{ grid-template-columns:1fr; padding:0 16px }
+      .filter{ grid-column:1 / -1 }
+      .bar{ padding:0 16px; box-sizing:border-box; align-items:flex-start; flex-direction:column }
+      .bar-actions{ width:100%; justify-content:space-between }
+      .card .topline{ align-items:flex-start; flex-direction:column }
+      .perma{ width:100%; flex-wrap:wrap }
+    }
 
     .error{ background:#230b0b; border:1px solid #501c1c; color:#ffdddd; padding:12px 14px; border-radius:12px; margin: 10px auto; width:min(920px, 100%) }
 
@@ -183,66 +216,48 @@ CLASES / TIPOS
   .card.highlight{ outline:2px solid var(--warn); box-shadow:0 0 0 4px rgba(234,179,8,0.15) inset }
   
 
-  /* ====== VISOR DE MAPA (OSM + geoservicios) ====== */
-  .map-overlay{
-    position:fixed;
-    inset:0;
-    background:rgba(0,0,0,0.72);
-    display:none;
-    align-items:center;
-    justify-content:center;
-    z-index:9999;
+  /* ====== VISOR DE MAPA EN LÍNEA (OSM + geoservicios) ====== */
+  .map-slot{
+    margin-top:12px;
   }
-  .map-inner{
-    width:min(960px, 96vw);
-    height:min(620px, 88vh);
-    background:var(--panel);
-    border-radius:18px;
-    border:1px solid var(--border);
-    box-shadow:0 18px 45px rgba(0,0,0,0.55);
-    display:flex;
-    flex-direction:column;
-    overflow:hidden;
-  }
-  .map-header{
-    padding:10px 12px;
-    border-bottom:1px solid var(--border);
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-  }
-  .map-title-wrap{
-    display:flex;
-    flex-direction:column;
-    gap:4px;
-    min-width:0;
-  }
-  .map-title{
-    font-size:14px;
-    font-weight:600;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-  }
-  .map-status{
-    font-size:12px;
+  .map-slot:empty{ display:none; }
+  .map-message{
     color:var(--muted);
+    font-size:13px;
+    line-height:1.4;
+    padding:2px 0;
   }
-  .map-close{
-    flex-shrink:0;
+  .map-message.unavailable{ color:#d7b6b6; }
+  .inline-map-frame{
+    width:100%;
+    height:clamp(300px, 46vw, 440px);
+    border:1px solid var(--border);
+    border-radius:14px;
+    overflow:hidden;
+    background:#05120c;
+    position:relative;
   }
-  .map-container{
-    flex:1;
-    min-height:260px;
-  }
-  .map-container .leaflet-container{
+  .inline-map-frame .leaflet-container{
     width:100%;
     height:100%;
   }
-  @media (max-width: 640px){
-    .map-inner{ height:80vh; }
+  .inline-map-note{
+    color:var(--muted);
+    font-size:12px;
+    margin-top:6px;
   }
+  /* El mapa se valida fuera de pantalla. Solo se inserta en la tarjeta si cargó. */
+  .map-validation-stage{
+    position:absolute;
+    left:-100000px;
+    top:0;
+    width:900px;
+    height:440px;
+    opacity:0;
+    pointer-events:none;
+    z-index:-1;
+  }
+
 
 
     
@@ -289,9 +304,6 @@ CLASES / TIPOS
   <b>Sebastián Cotes-Ontibón </b> Investigador del Obs. Amazonia Urosario. Contacto: juan.cotes@urosario.edu.co
 </div>
 <div class="chips" id="chips"></div>
-```
-
-```
 
 
     </section>
@@ -300,34 +312,23 @@ CLASES / TIPOS
 
     <div class="bar">
       <div class="count" id="count">Cargando…</div>
-      <div class="sort">
-        Ordenar:
-        <select id="sort">
-          <option value="relevance">Por relevancia</option>
-          <option value="titulo">A–Z por título</option>
-          <!-- opciones por etiquetas se añadirán dinámicamente -->
-        </select>
+      <div class="bar-actions">
+        <button id="clear-filters" type="button" class="btn clear-filters" disabled>Limpiar filtros</button>
+        <div class="sort">
+          Ordenar:
+          <select id="sort">
+            <option value="relevance">Por relevancia</option>
+            <option value="titulo">A–Z por título</option>
+            <!-- opciones por etiquetas se añadirán dinámicamente -->
+          </select>
+        </div>
       </div>
     </div>
 
     <div id="error" class="error" style="display:none">Error al cargar los datos.</div>
     <section id="results" class="results"></section>
   </main>
-  <!-- ===== Overlay para visor de mapa OSM + geoservicio ===== -->
-  <div id="map-overlay" class="map-overlay" aria-hidden="true">
-    <div class="map-inner">
-      <div class="map-header">
-        <div class="map-title-wrap">
-          <div id="map-dataset-title" class="map-title">Vista de mapa</div>
-          <div id="map-status" class="map-status"></div>
-        </div>
-        <button id="map-close" type="button" class="btn map-close">Cerrar</button>
-      </div>
-      <div class="map-container">
-        <div id="map" style="width:100%; height:100%;"></div>
-      </div>
-    </div>
-  </div>
+
 
   <footer>
     <div class="wrap">
@@ -340,6 +341,8 @@ CLASES / TIPOS
 <script>
 // === Configuración ===
 const DATA_URL = 'https://docs.google.com/spreadsheets/d/1Smop4rx0K4pj5sHXD19DE3iqcwTCyqn9ohPxIuJsZ8s/export?format=csv&gid=0';
+// Los enlaces compartidos siempre apuntan a la versión pública, incluso cuando se prueba en localhost.
+const PUBLIC_BASE_URL = 'https://juancotes.github.io/repositorio-de-informacion-geoespacial/';
 
 
 // === Utilidades ===
@@ -411,25 +414,100 @@ function djb2(str=''){
 
   
 function permalinkFor(r){
-  // siempre parte de la URL base de la app (sin filtros previos)
-  const url = new URL(window.location.origin + window.location.pathname);
+  // Siempre comparte la URL pública de GitHub Pages, incluso durante pruebas en localhost.
+  const url = new URL(PUBLIC_BASE_URL);
   url.searchParams.set('id', r._id);
   return url.toString();
 }
-function shareBtn(text){
+
+async function copyToClipboard(text=''){
+  const value = String(text || '');
+  if (!value) throw new Error('No hay texto para copiar.');
+
+  if (navigator.clipboard && window.isSecureContext){
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  // Fallback para navegadores/contextos donde Clipboard API no está disponible.
+  const ta = document.createElement('textarea');
+  ta.value = value;
+  ta.setAttribute('readonly','');
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  const ok = document.execCommand('copy');
+  ta.remove();
+  if (!ok) throw new Error('No fue posible copiar al portapapeles.');
+}
+
+function buttonThatCopies({label, text, successLabel='¡Copiado!'}){
   const b = document.createElement('button');
-  b.className='btn'; b.textContent='Compartir';
+  b.type = 'button';
+  b.className = 'btn';
+  b.textContent = label;
   b.onclick = async ()=>{
+    const original = label;
     try{
-      await navigator.clipboard.writeText(text||'');
-      b.textContent='¡Copiado!';
-      setTimeout(()=>b.textContent='Compartir', 1200);
+      const value = (typeof text === 'function') ? text() : text;
+      await copyToClipboard(value);
+      b.textContent = successLabel;
     }catch(e){
-      b.textContent='Error';
-      setTimeout(()=>b.textContent='Compartir', 1200);
+      console.error(e);
+      b.textContent = 'Error al copiar';
     }
+    setTimeout(()=>{ b.textContent = original; }, 1500);
   };
   return b;
+}
+
+function originalSourceFor(r){
+  // Prioridad explícita. La hoja sigue mandando: si existe fuente_original, se usa.
+  // Los fallbacks conservan compatibilidad con columnas que ya puedan existir.
+  const preferred = [
+    'fuente_original',
+    'fuente_detallada',
+    'fuente',
+    'origen',
+    'institucion',
+    'autor'
+  ];
+  const bags = [r?._etiquetaNoFiltro || {}, r?.etiqueta || {}];
+
+  for (const field of preferred){
+    for (const bag of bags){
+      const value = String(bag[field] || '').trim();
+      if (value) return value;
+    }
+  }
+  return '';
+}
+
+function citationFor(r){
+  const title = String(r?.principal?.titulo || 'Recurso geoespacial').trim();
+  const source = originalSourceFor(r);
+  const sourcePart = source
+    ? `Fuente original: ${source}.`
+    : 'Fuente original: no especificada en la ficha.';
+
+  return `${title}. ${sourcePart} Curado por Curaduría de información geoespacial. ${permalinkFor(r)}`;
+}
+
+function permalinkCopyBtn(r){
+  return buttonThatCopies({
+    label:'🔗 Copiar enlace',
+    text:()=>permalinkFor(r),
+    successLabel:'¡Enlace copiado!'
+  });
+}
+
+function shareBtn(r){
+  return buttonThatCopies({
+    label:'Compartir',
+    text:()=>citationFor(r),
+    successLabel:'¡Citación copiada!'
+  });
 }
 
 
@@ -640,7 +718,7 @@ function buildFacets(){
     .map(x=>x.f);
   for(const f of rankedLabelFields){
     const topVals = topKFreq(RAW.map(r=>r.etiqueta[f]).filter(Boolean), 3);
-    for(const v of topVals){ const chip=document.createElement('span'); chip.className='chip'; chip.textContent=v; chip.onclick=()=>applyQuickFilter(f,v); chips.appendChild(chip);}    
+    for(const v of topVals){ const chip=document.createElement('button'); chip.type='button'; chip.className='chip'; chip.textContent=v; chip.onclick=()=>applyQuickFilter(f,v); chips.appendChild(chip);}    
   }
 
   // Orden por primeras etiquetas
@@ -667,6 +745,42 @@ function capitalize(s=''){ return s.charAt(0).toUpperCase()+s.slice(1); }
 function applyQuickFilter(field, value){
   const sel = document.getElementById(`f-etiqueta-${field}`);
   if(sel){ sel.value = value; runSearch(); }
+}
+
+function hasActiveFilters(){
+  const q = document.getElementById('q');
+  if (q && q.value.trim()) return true;
+  for (const lf of LABEL_FIELDS){
+    const sel = document.getElementById(`f-etiqueta-${lf}`);
+    if (sel && sel.value) return true;
+  }
+  for (const af of ACCESS_FIELDS){
+    const cb = document.getElementById(`f-acceso-${af}`);
+    if (cb && cb.checked) return true;
+  }
+  const sort = document.getElementById('sort');
+  return !!(sort && sort.value !== 'relevance');
+}
+
+function updateClearFiltersState(){
+  const b = document.getElementById('clear-filters');
+  if (b) b.disabled = !hasActiveFilters();
+}
+
+function clearAllFilters(){
+  const q = document.getElementById('q');
+  if (q) q.value = '';
+  for (const lf of LABEL_FIELDS){
+    const sel = document.getElementById(`f-etiqueta-${lf}`);
+    if (sel) sel.value = '';
+  }
+  for (const af of ACCESS_FIELDS){
+    const cb = document.getElementById(`f-acceso-${af}`);
+    if (cb) cb.checked = false;
+  }
+  const sort = document.getElementById('sort');
+  if (sort) sort.value = 'relevance';
+  runSearch();
 }
 
 // Detección de filtros en la query: etiqueta.<campo>:, acceso.<campo>:, y atajos categoria:, origen:, rest:
@@ -794,466 +908,426 @@ function setSafeBold(el, raw){
   el.textContent = '';     // limpiar seguro
   el.appendChild(frag);    // insertar fragmento
 }
-// ====== VISOR DE MAPA: detección de servicios y Leaflet / Esri Leaflet ======
+// ====== VISOR DE MAPA EN LÍNEA: validar primero, mostrar después ======
 
-let MAP = null;
-let MAP_BASE = null;
-let MAP_ACTIVE_LAYER = null;
-  let CURRENT_RECORD_FOR_MAP = null; // 🔹 NUEVO: registro actualmente abierto en el visor
+const INLINE_MAPS = new Map();
 
-
-function ensureMapInstance(){
-  if (typeof L === 'undefined'){
-    console.warn('Leaflet no está disponible.');
-    return null;
+function destroyInlineMaps(){
+  for (const map of INLINE_MAPS.values()){
+    try{ map.remove(); }catch(_){ }
   }
-  if (MAP) return MAP;
-
-  const el = document.getElementById('map');
-  if (!el) {
-    console.warn('No se encontró el contenedor #map.');
-    return null;
-  }
-
-  // Limpieza defensiva por si algo dejó contenido raro ahí
-  el.innerHTML = '';
-
-  MAP = L.map(el, {
-    center:[4, -72],   // 👈 centro aproximado Colombia
-    zoom:5
-  });
-
-  // Basemap OSM clásico
-  MAP_BASE = L.tileLayer(
-    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    {
-      maxZoom:19,
-      attribution:'&copy; OpenStreetMap contributors'
-    }
-  );
-  MAP_BASE.addTo(MAP);
-
-  return MAP;
+  INLINE_MAPS.clear();
+  document.querySelectorAll('.map-validation-stage').forEach(el=>el.remove());
 }
 
-// Detecta tipo de geoservicio a partir de la URL
 // --- Normalización específica para ArcGIS REST (consulta -> visualización) ---
 function normalizeArcgisRestUrl(url = '') {
   if (!url) return url;
-
-  // Intentamos usar URL nativa (más robusto con parámetros)
   try {
     const u = new URL(url);
-    let path = u.pathname;
-
-    // Si la ruta termina en /query, /export, /identify, etc., quitamos ese sufijo.
-    // Ejemplos:
-    //  - /MapServer/0/query  -> /MapServer/0
-    //  - /FeatureServer/8/query -> /FeatureServer/8
-    path = path.replace(/\/(query|export|find|identify)$/i, '');
-
-    // También podemos ignorar parámetros típicos de consulta tipo ?f=pjson, ?where=...
-    return u.origin + path;
+    let path = u.pathname.replace(/\/(query|export|find|identify)$/i, '');
+    return u.origin + path.replace(/\/$/, '');
   } catch {
-    // Fallback por si no se puede parsear bien como URL
-    return url
-      .replace(/\/(query|export|find|identify)\b.*$/i, '') // corta desde /query en adelante
-      .replace(/\?f=pjson.*$/i, ''); // limpia ?f=pjson si lo hubiera
+    return String(url)
+      .replace(/\/(query|export|find|identify)\b.*$/i, '')
+      .replace(/\?f=(p?json).*$/i, '')
+      .replace(/\/$/, '');
   }
 }
 
 function detectServiceType(url = '') {
   if (!url) return 'none';
-
-  // Usamos la URL normalizada por si viene con /query, etc.
   const normalizedForType = normalizeArcgisRestUrl(url);
   const u = normalizedForType.toLowerCase();
 
-  // GeoJSON explícito
-  if (u.endsWith('.geojson') || u.includes('f=geojson')) {
-    return 'geojson';
-  }
-
-  // 🔹 ArcGIS REST
-  if (/\/featureserver(\/|$)/.test(u)) {
-    return 'esri-featureserver';
-  }
-  if (/\/mapserver(\/|$)/.test(u)) {
-    return 'esri-mapserver';
-  }
-  if (/\/imageserver(\/|$)/.test(u)) {
-    return 'esri-imageserver';
-  }
-
-  // 🔹 WFS = vectores
-  if (
-    u.includes('service=wfs') ||
-    u.includes('request=getfeature') ||
-    /\/wfs\b/.test(u)
-  ) {
-    return 'wfs';
-  }
-
-  // WMS / WMTS
-  if (u.includes('service=wms') || u.includes('request=getmap') || /\/wms\b/.test(u)) {
-    return 'wms';
-  }
-  if (u.includes('service=wmts') || u.includes('wmts')) {
-    return 'wmts';
-  }
-
-  // XYZ tiles
-  if (u.includes('{z}') && u.includes('{x}') && u.includes('{y}')) {
-    return 'xyz';
-  }
-
+  if (u.endsWith('.geojson') || u.includes('f=geojson')) return 'geojson';
+  if (/\/featureserver(\/|$)/.test(u)) return 'esri-featureserver';
+  if (/\/mapserver(\/|$)/.test(u)) return 'esri-mapserver';
+  if (/\/imageserver(\/|$)/.test(u)) return 'esri-imageserver';
+  if (u.includes('service=wfs') || u.includes('request=getfeature') || /\/wfs\b/.test(u)) return 'wfs';
+  if (u.includes('service=wms') || u.includes('request=getmap') || /\/wms\b/.test(u)) return 'wms';
+  if (u.includes('service=wmts') || u.includes('wmts')) return 'wmts';
+  if (u.includes('{z}') && u.includes('{x}') && u.includes('{y}')) return 'xyz';
   return 'unknown';
 }
 
-// Convierte una URL WFS cualquiera en una petición GetFeature en GeoJSON
-function normalizeWfsToGeojson(url = '') {
-  try {
-    const u = new URL(url);
-    const sp = u.searchParams;
-    if (!sp.get('service')) sp.set('service', 'WFS');
-    sp.set('request', 'GetFeature');
-    if (!sp.get('outputFormat')) {
-      // muchos servidores aceptan este formato como GeoJSON
-      sp.set('outputFormat', 'application/json');
-    }
-    return u.toString();
-  } catch {
-    // si algo falla, devolvemos la original
-    return url;
-  }
+function parseArcgisRestUrl(url=''){
+  const clean = normalizeArcgisRestUrl(url);
+  const m = clean.match(/^(.*\/(FeatureServer|MapServer|ImageServer))(?:\/(\d+))?$/i);
+  if (!m) return null;
+  return {
+    clean,
+    root:m[1],
+    serviceType:m[2].toLowerCase(),
+    layerId:(m[3] === undefined ? null : Number(m[3]))
+  };
 }
 
-function createLayerForService(url) {
-  if (typeof L === 'undefined' || !url) return null;
+function withTimeout(promise, ms=12000, message='Tiempo de espera agotado'){
+  return new Promise((resolve,reject)=>{
+    const t = setTimeout(()=>reject(new Error(message)), ms);
+    promise.then(v=>{ clearTimeout(t); resolve(v); }, e=>{ clearTimeout(t); reject(e); });
+  });
+}
 
-  // Normalizamos: si hubiera varias URLs en el mismo campo, tomamos la primera
-  const urls = extractUrls(url);
-  if (!urls.length) return null;
-  const firstUrl = urls[0];
+function esriRequestJson(url, params={}){
+  const payload = { f:'json', ...params };
 
-  const type = detectServiceType(firstUrl);
+  // Esri Leaflet puede usar CORS o JSONP según el servidor: es más robusto que fetch puro.
+  if (typeof L !== 'undefined' && L.esri && typeof L.esri.request === 'function'){
+    return withTimeout(new Promise((resolve,reject)=>{
+      L.esri.request(url, payload, (error, response)=>{
+        if (error) return reject(error);
+        if (!response || response.error) return reject(response?.error || new Error('Respuesta ArcGIS vacía'));
+        resolve(response);
+      });
+    }), 12000, 'El servicio ArcGIS no respondió a tiempo.');
+  }
 
-  try {
-    // ... y a partir de aquí usa firstUrl en lugar de url ...
+  const u = new URL(url);
+  Object.entries(payload).forEach(([k,v])=>u.searchParams.set(k, String(v)));
+  return withTimeout(fetch(u.toString()).then(r=>{
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }), 12000, 'El servicio ArcGIS no respondió a tiempo.');
+}
 
-    // ---------- XYZ ----------
-    if (type === 'xyz' || (type === 'unknown' && url.includes('{z}') && url.includes('{x}') && url.includes('{y}'))) {
-      return L.tileLayer(url, { maxZoom: 19 });
-    }
+function normalizeWfsToGeojson(url = '') {
+  const u = new URL(url);
+  const sp = u.searchParams;
+  if (!sp.get('service')) sp.set('service', 'WFS');
+  sp.set('request', 'GetFeature');
+  if (!sp.get('outputFormat')) sp.set('outputFormat', 'application/json');
+  return u.toString();
+}
 
-    // ---------- WFS (vectores) ----------
-    if (type === 'wfs') {
-      const g = L.geoJSON();
-      const geoUrl = normalizeWfsToGeojson(url);
+function extentToBounds(ext){
+  if (!ext || typeof L === 'undefined') return null;
+  const xmin = Number(ext.xmin), ymin = Number(ext.ymin), xmax = Number(ext.xmax), ymax = Number(ext.ymax);
+  if (![xmin,ymin,xmax,ymax].every(Number.isFinite) || xmin === xmax || ymin === ymax) return null;
 
-      fetch(geoUrl)
-        .then(r => r.json())
-        .then(j => {
-          g.addData(j);
-        })
-        .catch(err => {
-          console.error('Error cargando WFS como GeoJSON', err);
-        });
+  const sr = ext.spatialReference || {};
+  const wkid = Number(sr.latestWkid || sr.wkid || 0);
 
-      // Devolvemos el layer vacío; se llenará cuando termine el fetch
-      return g;
-    }
+  // Si los valores ya parecen longitud/latitud, no hace falta conocer el WKID exacto.
+  if (xmin >= -180 && xmax <= 180 && ymin >= -90 && ymax <= 90){
+    return L.latLngBounds([ymin,xmin],[ymax,xmax]);
+  }
 
-    // ---------- WMS genérico ----------
-    if (type === 'wms') {
-      let base = url;
-      let layersParam = '';
-
-      try {
-        const p = new URL(url);
-        base = p.origin + p.pathname;
-        const sp = p.searchParams;
-        layersParam = sp.get('layers') || sp.get('LAYERS') || '';
-      } catch (_) {
-        base = url.split('?')[0];
-      }
-
-      const wmsOptions = {
-        format: 'image/png',
-        transparent: true
-      };
-
-      if (layersParam) {
-        wmsOptions.layers = layersParam;
-      }
-
-      return L.tileLayer.wms(base, wmsOptions);
-    }
-
-    // ---------- ArcGIS REST ----------
-    // ---------- ArcGIS REST ----------
-    if ((type === 'esri-mapserver' || type === 'esri-featureserver' || type === 'esri-imageserver') && L.esri) {
-      let cleanUrl = normalizeArcgisRestUrl(url);
-    
-      // 💡 Si el servicio termina en /FeatureServer o /MapServer SIN layerId, asumimos /0
-      if (/\/featureserver\/?$/i.test(cleanUrl)) {
-        cleanUrl = cleanUrl.replace(/\/?$/,'/0');
-      }
-      if (/\/mapserver\/?$/i.test(cleanUrl)) {
-        cleanUrl = cleanUrl.replace(/\/?$/,'/0');
-      }
-    
-      if (type === 'esri-mapserver') {
-        return L.esri.dynamicMapLayer({ url: cleanUrl });
-      }
-    
-      if (type === 'esri-featureserver') {
-        return L.esri.featureLayer({ url: cleanUrl });
-      }
-    
-      if (type === 'esri-imageserver') {
-        return L.esri.imageMapLayer({ url: cleanUrl });
-      }
-    }
-    
-         
-    
-        
-       
-
-    // ---------- GeoJSON remoto ----------
-    if (type === 'geojson') {
-      const g = L.geoJSON();
-      fetch(url)
-        .then(r => r.json())
-        .then(j => g.addData(j))
-        .catch(err => console.error('Error cargando GeoJSON', err));
-      return g;
-    }
-
-    // Fallback extra a XYZ
-    if (url.includes('{z}') && url.includes('{x}') && url.includes('{y}')) {
-      return L.tileLayer(url, { maxZoom: 19 });
-    }
-
-  } catch (e) {
-    console.error('Error creando capa para', url, e);
-    return null;
+  // Web Mercator habitual en ArcGIS.
+  if ([3857,102100,102113].includes(wkid)){
+    const sw = L.CRS.EPSG3857.unproject(L.point(xmin,ymin));
+    const ne = L.CRS.EPSG3857.unproject(L.point(xmax,ymax));
+    return L.latLngBounds(sw,ne);
   }
 
   return null;
 }
 
+function unionBounds(boundsList){
+  const valid = boundsList.filter(b=>b && typeof b.isValid === 'function' && b.isValid());
+  if (!valid.length) return null;
+  const out = L.latLngBounds(valid[0].getSouthWest(), valid[0].getNorthEast());
+  valid.slice(1).forEach(b=>out.extend(b));
+  return out;
+}
 
-// Selecciona URLs de servicio para un registro, con prioridad:
-// 1) acceso_rest
-// 2) acceso_rest_* (incluyendo respaldo)
-// 3) acceso_respaldo genérico
-// 4) otros acceso_* que parezcan geoservicios
-// 5) accesoNOfiltro_* que parezcan geoservicios
+async function queryArcgisLayerExtent(root, layerId){
+  try{
+    const j = await esriRequestJson(`${root}/${layerId}/query`, {
+      where:'1=1',
+      returnExtentOnly:true,
+      outSR:4326
+    });
+    return extentToBounds(j.extent);
+  }catch(_){
+    return null;
+  }
+}
+
+async function arcgisExtent(parsed, metadata){
+  // Primero confiamos en una extensión que ya pueda convertirse con seguridad.
+  const direct = extentToBounds(metadata?.fullExtent || metadata?.extent || metadata?.initialExtent);
+  if (direct) return direct;
+
+  // Para capas consultables pedimos explícitamente la extensión en EPSG:4326.
+  if (parsed.layerId !== null){
+    return await queryArcgisLayerExtent(parsed.root, parsed.layerId);
+  }
+
+  // En un MapServer raíz, intentamos unir la extensión de las subcapas consultables.
+  if (parsed.serviceType === 'mapserver' && Array.isArray(metadata?.layers)){
+    const ids = metadata.layers
+      .filter(x=>Number.isInteger(x?.id) && !Array.isArray(x?.subLayerIds))
+      .slice(0,12)
+      .map(x=>x.id);
+    const extents = await Promise.all(ids.map(id=>queryArcgisLayerExtent(parsed.root,id)));
+    return unionBounds(extents);
+  }
+
+  return null;
+}
+
+async function prepareArcgisService(url){
+  if (typeof L === 'undefined' || !L.esri) throw new Error('Esri Leaflet no está disponible.');
+  const parsed = parseArcgisRestUrl(url);
+  if (!parsed) throw new Error('URL ArcGIS REST no reconocida.');
+
+  let layerUrl = parsed.clean;
+  let layerId = parsed.layerId;
+  let metadata = await esriRequestJson(parsed.clean);
+
+  // FeatureServer raíz: solo inferimos subcapa cuando hay exactamente una.
+  // Elegir arbitrariamente /0 en servicios con varias capas puede mostrar la variable equivocada.
+  if (parsed.serviceType === 'featureserver' && layerId === null){
+    const layers = Array.isArray(metadata?.layers) ? metadata.layers.filter(x=>Number.isInteger(x?.id)) : [];
+    if (layers.length !== 1){
+      throw new Error('El FeatureServer no identifica una única subcapa.');
+    }
+    layerId = layers[0].id;
+    layerUrl = `${parsed.root}/${layerId}`;
+    metadata = await esriRequestJson(layerUrl);
+  }
+
+  const resolved = {...parsed, layerId, clean:layerUrl};
+  const bounds = await arcgisExtent(resolved, metadata);
+  if (!bounds || !bounds.isValid()) throw new Error('No fue posible determinar la extensión de la capa.');
+
+  let createLayer;
+  if (parsed.serviceType === 'featureserver'){
+    createLayer = ()=>L.esri.featureLayer({url:layerUrl});
+  } else if (parsed.serviceType === 'mapserver'){
+    createLayer = ()=>{
+      const options = {url:parsed.root};
+      if (layerId !== null) options.layers = [layerId];
+      return L.esri.dynamicMapLayer(options);
+    };
+  } else if (parsed.serviceType === 'imageserver'){
+    createLayer = ()=>L.esri.imageMapLayer({url:parsed.root});
+  } else {
+    throw new Error('Tipo ArcGIS no soportado.');
+  }
+
+  return { createLayer, bounds, type:parsed.serviceType };
+}
+
+async function prepareGeoJsonService(url){
+  const response = await withTimeout(fetch(url), 12000, 'El recurso GeoJSON no respondió a tiempo.');
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const data = await response.json();
+  const probe = L.geoJSON(data);
+  const bounds = probe.getBounds();
+  if (!bounds || !bounds.isValid()) throw new Error('El GeoJSON no contiene geometrías visibles.');
+  return { createLayer:()=>L.geoJSON(data), bounds, type:'geojson' };
+}
+
+async function prepareWfsService(url){
+  return prepareGeoJsonService(normalizeWfsToGeojson(url));
+}
+
+async function prepareVisualizableService(url){
+  const first = extractUrls(url)[0];
+  if (!first) throw new Error('No hay URL de servicio.');
+  const type = detectServiceType(first);
+
+  if (type.startsWith('esri-')) return prepareArcgisService(first);
+  if (type === 'geojson') return prepareGeoJsonService(first);
+  if (type === 'wfs') return prepareWfsService(first);
+
+  // WMS/WMTS/XYZ pueden dibujarse, pero sin una extensión declarada no es riguroso
+  // prometer que la vista inicial corresponde a la capa. Por ahora no se muestran.
+  throw new Error(`Servicio ${type} sin una extensión verificable.`);
+}
+
+// Selecciona EXCLUSIVAMENTE campos REST. La hoja define cuántos respaldos existen.
+// Orden: acceso_rest exacto -> demás acceso_* que contengan rest -> accesoNOfiltro_* que contengan rest.
 function getServiceUrlsForRecord(r){
   const candidates = [];
 
-  function pushCandidate(url, name, priority){
-    if (!isURL(url)) return;
-    candidates.push({ url, name, priority });
-  }
-
-  // 1) acceso_rest explícito
-  if (r.acceso && r.acceso.rest){
-    pushCandidate(r.acceso.rest, 'acceso.rest', 100);
-  }
-
-  // 2) campos acceso_rest_* (ej. acceso_rest_respaldo)
-  if (r.acceso){
-    for (const [k,v] of Object.entries(r.acceso)){
-      if (!v || k === 'rest') continue;
-      const lk = k.toLowerCase();
-      if (lk.startsWith('rest') || lk.includes('rest')){
-        const p = lk.includes('respaldo') ? 80 : 60;
-        pushCandidate(v, `acceso.${k}`, p);
-      }
+  function pushField(value, name, priority, fieldOrder){
+    for (const url of extractUrls(value)){
+      candidates.push({url, name, priority, fieldOrder, type:detectServiceType(url)});
     }
   }
 
-  // 3) respaldo genérico (acceso_respaldo)
-  if (r.acceso && r.acceso.respaldo){
-    pushCandidate(r.acceso.respaldo, 'acceso.respaldo', 50);
+  // REST principal explícito.
+  if (r?.acceso?.rest) pushField(r.acceso.rest, 'acceso.rest', 1000, 0);
+
+  // Cualquier otro campo acceso_* con REST en el nombre se considera siguiente alternativa.
+  let order = 1;
+  for (const [k,v] of Object.entries(r?.acceso || {})){
+    if (!v || k === 'rest' || !/rest/i.test(k)) continue;
+    // Los nombres con "respaldo" van antes que otros REST auxiliares, conservando orden de columna.
+    const priority = /respaldo|backup/i.test(k) ? 900 : 800;
+    pushField(v, `acceso.${k}`, priority, order++);
   }
 
-  // 4) otros acceso_* que "huelan" a geoservicio
-  if (r.acceso){
-    for (const [k,v] of Object.entries(r.acceso)){
-      if (!v) continue;
-      if (k === 'rest' || k === 'respaldo') continue;
-      const lk = k.toLowerCase();
-      if (/(wms|wmts|wfs|tiles?|xyz|service)/.test(lk)){
-        pushCandidate(v, `acceso.${k}`, 40);
-      }
-    }
+  for (const [k,v] of Object.entries(r?._accesoNoFiltro || {})){
+    if (!v || !/rest/i.test(k)) continue;
+    const priority = /respaldo|backup/i.test(k) ? 700 : 600;
+    pushField(v, `accesoNOfiltro.${k}`, priority, order++);
   }
 
-  // 5) accesoNOfiltro_* geoservicio
-  if (r._accesoNoFiltro){
-    for (const [k,v] of Object.entries(r._accesoNoFiltro)){
-      if (!v) continue;
-      const lk = k.toLowerCase();
-      if (/(rest|wms|wmts|wfs|tiles?|xyz|geojson|service)/.test(lk)){
-        pushCandidate(v, `accesoNOfiltro.${k}`, 30);
-      }
-    }
-  }
-
-  // Ordenar por prioridad
-  candidates.sort((a,b)=> b.priority - a.priority);
-
-  const primary = candidates[0]?.url || '';
-  const backup  = candidates.find(c => c.url !== primary)?.url || '';
-
-  return { primary, backup };
+  candidates.sort((a,b)=> (b.priority-a.priority) || (a.fieldOrder-b.fieldOrder));
+  const unique = candidates.filter((c,i,a)=>a.findIndex(x=>x.url===c.url)===i);
+  return { candidates:unique };
 }
 
-// Añade capa al mapa con fallback a respaldo si hay error
-function attachLayerWithFallback(map, primaryUrl, backupUrl, statusEl){
-  if (!map || !primaryUrl && !backupUrl){
-    if (statusEl) statusEl.textContent = 'Este recurso no tiene servicio de mapas compatible.';
-    return;
-  }
+function waitForLayerLoad(layer, map, timeoutMs=12000){
+  return new Promise((resolve,reject)=>{
+    let settled = false;
+    let timer;
 
-  let triedBackup = false;
-
-  function tryUrl(url, altUrl){
-    if (!url){
-      if (statusEl) statusEl.textContent = 'No se pudo cargar la capa.';
-      return;
-    }
-
-    const layer = createLayerForService(url);
-    if (!layer){
-      if (altUrl && !triedBackup){
-        triedBackup = true;
-        if (statusEl) statusEl.textContent = 'Error con el servicio principal, probando respaldo…';
-        return tryUrl(altUrl, null);
+    const done = (ok, value)=>{
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (layer.off){
+        layer.off('load', onLoad);
+        layer.off('requesterror', onError);
+        layer.off('tileerror', onError);
+        layer.off('error', onError);
       }
-      if (statusEl) statusEl.textContent = 'Tipo de servicio no reconocido.';
-      return;
-    }
-
-    if (MAP_ACTIVE_LAYER){
-      try{ map.removeLayer(MAP_ACTIVE_LAYER); }catch(_){}
-    }
-    MAP_ACTIVE_LAYER = layer;
-
-    if (statusEl) statusEl.textContent = 'Cargando capa…';
-
-    const fail = ()=>{
-      try{ map.removeLayer(layer); }catch(_){}
-      if (altUrl && !triedBackup){
-        triedBackup = true;
-        if (statusEl) statusEl.textContent = 'Error con el servicio principal, probando respaldo…';
-        return tryUrl(altUrl, null);
-      }
-      if (statusEl) statusEl.textContent = 'No se pudo cargar la capa.';
+      ok ? resolve(value) : reject(value);
     };
+    const onLoad = ()=>done(true);
+    const onError = (e)=>done(false, e instanceof Error ? e : new Error('La capa reportó un error de carga.'));
 
     if (layer.on){
-      layer.on('tileerror', fail);
-      layer.on('requesterror', fail);
-      layer.on('loading', ()=>{ if (statusEl) statusEl.textContent = 'Cargando capa…'; });
-      layer.on('load', e=>{
-        if (statusEl) statusEl.textContent = '';
-        try{
-          if (e && e.bounds){
-            map.fitBounds(e.bounds);
-          }
-        }catch(_){}
-      });
+      layer.on('load', onLoad);
+      layer.on('requesterror', onError);
+      layer.on('tileerror', onError);
+      layer.on('error', onError);
     }
 
+    timer = setTimeout(()=>done(false, new Error('La capa no confirmó carga a tiempo.')), timeoutMs);
     layer.addTo(map);
 
-    // Intento adicional de ajustar extensión si la capa expone getBounds()
+    // GeoJSON ya está materializado y no necesariamente emite load.
+    if (layer instanceof L.GeoJSON) requestAnimationFrame(()=>done(true));
+  });
+}
+
+async function validateAndMountMap(record, slot, button){
+  const {candidates} = getServiceUrlsForRecord(record);
+  if (!candidates.length) return;
+
+  const token = Symbol('map-load');
+  slot._mapLoadToken = token;
+  slot.innerHTML = '<div class="map-message">Comprobando visualización…</div>';
+  button.disabled = true;
+
+  const attempts = candidates.map(c=>c.url);
+  let lastError = null;
+
+  for (let i=0; i<attempts.length; i++){
+    const url = attempts[i];
+    let stage = null;
+    let map = null;
     try{
+      const prepared = await prepareVisualizableService(url);
+      if (slot._mapLoadToken !== token || !document.body.contains(slot)) return;
+
+      stage = document.createElement('div');
+      stage.className = 'map-validation-stage';
+      const mapEl = document.createElement('div');
+      mapEl.style.width = '100%';
+      mapEl.style.height = '100%';
+      stage.appendChild(mapEl);
+      document.body.appendChild(stage);
+
+      map = L.map(mapEl, {zoomControl:true, attributionControl:true});
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom:19,
+        attribution:'&copy; OpenStreetMap contributors'
+      }).addTo(map);
+      map.fitBounds(prepared.bounds, {padding:[18,18], maxZoom:16});
+
+      const layer = prepared.createLayer();
+      await waitForLayerLoad(layer, map);
+
+      // Confirmación final: la extensión debe seguir siendo válida.
+      let finalBounds = prepared.bounds;
       if (typeof layer.getBounds === 'function'){
-        const b = layer.getBounds();
-        if (b && b.isValid && b.isValid()){
-          map.fitBounds(b);
-        }
+        try{
+          const lb = layer.getBounds();
+          if (lb && lb.isValid && lb.isValid()) finalBounds = lb;
+        }catch(_){ }
       }
-    }catch(_){}
+      if (!finalBounds || !finalBounds.isValid()) throw new Error('La capa cargó sin una extensión válida.');
+
+      if (slot._mapLoadToken !== token || !document.body.contains(slot)){
+        try{ map.remove(); }catch(_){ }
+        stage.remove();
+        return;
+      }
+
+      stage.className = 'inline-map-frame';
+      stage.style.cssText = '';
+      slot.innerHTML = '';
+      slot.appendChild(stage);
+      map.fitBounds(finalBounds, {padding:[18,18], maxZoom:16});
+      requestAnimationFrame(()=>map.invalidateSize());
+
+      if (i > 0){
+        const note = document.createElement('div');
+        note.className = 'inline-map-note';
+        note.textContent = 'Visualización cargada desde el servicio de respaldo.';
+        slot.appendChild(note);
+      }
+
+      INLINE_MAPS.set(record._id, map);
+      button.disabled = false;
+      button.textContent = 'Ocultar mapa';
+      button.dataset.mapOpen = '1';
+      return;
+
+    }catch(err){
+      lastError = err;
+      console.warn('No se pudo visualizar servicio', url, err);
+      if (map){ try{ map.remove(); }catch(_){ } }
+      if (stage) stage.remove();
+    }
   }
 
-  tryUrl(primaryUrl || backupUrl, primaryUrl && backupUrl ? backupUrl : null);
+  if (slot._mapLoadToken === token && document.body.contains(slot)){
+    slot.innerHTML = '<div class="map-message unavailable">Visualización no disponible.</div>';
+    if (lastError) slot.firstElementChild.title = lastError.message || String(lastError);
+    button.disabled = false;
+    button.textContent = 'Ver mapa';
+    delete button.dataset.mapOpen;
+  }
 }
 
-// Abre el overlay y pinta la capa del registro seleccionado
-function openMapForRecord(record){
-  const overlay = document.getElementById('map-overlay');
-  const titleEl = document.getElementById('map-dataset-title');
-  const statusEl = document.getElementById('map-status');
-
-    // 🔹 ESTO recuerda qué registro estamos abriendo
-  CURRENT_RECORD_FOR_MAP = record;
-
-  if (!overlay){
-    console.warn('Overlay de mapa no encontrado.');
+function toggleMapForRecord(record, slot, button){
+  if (button.dataset.mapOpen === '1'){
+    const map = INLINE_MAPS.get(record._id);
+    if (map){ try{ map.remove(); }catch(_){ } }
+    INLINE_MAPS.delete(record._id);
+    slot._mapLoadToken = Symbol('cancelled');
+    slot.innerHTML = '';
+    button.textContent = 'Ver mapa';
+    delete button.dataset.mapOpen;
     return;
   }
-
-  const { primary, backup } = getServiceUrlsForRecord(record);
-  if (!primary && !backup){
-    alert('Este recurso no declara un acceso_rest ni otro geoservicio compatible.');
-    return;
-  }
-
-  overlay.style.display = 'flex';
-  overlay.setAttribute('aria-hidden','false');
-
-  if (titleEl){
-    titleEl.textContent = record.principal.titulo || 'Vista de mapa';
-  }
-  if (statusEl){
-    statusEl.textContent = 'Preparando mapa…';
-  }
-
-  const map = ensureMapInstance();
-  if (!map){
-    if (statusEl) statusEl.textContent = 'La librería Leaflet no está disponible.';
-    return;
-  }
-
-  // Necesario cuando el mapa estaba oculto
-  setTimeout(()=> map.invalidateSize(), 0);
-
-  attachLayerWithFallback(map, primary, backup, statusEl);
+  validateAndMountMap(record, slot, button);
 }
-
-function closeMapOverlay(){
-  const overlay = document.getElementById('map-overlay');
-  if (!overlay) return;
-  overlay.style.display = 'none';
-  overlay.setAttribute('aria-hidden','true');
-}
-
-// Bind de cierre (se hace una sola vez al cargar el script)
-document.addEventListener('DOMContentLoaded', ()=>{
-  const btnClose = document.getElementById('map-close');
-  if (btnClose){
-    btnClose.addEventListener('click', closeMapOverlay);
-  }
-  const overlay = document.getElementById('map-overlay');
-  if (overlay){
-    overlay.addEventListener('click', (e)=>{
-      if (e.target === overlay) closeMapOverlay();
-    });
-  }
-});
 
   
 function render(list){
+  destroyInlineMaps();
   const wrap = document.getElementById('results');
   wrap.innerHTML='';
   document.getElementById('count').textContent = `${list.length} ${list.length===1?'resultado':'resultados'}`;
+  updateClearFiltersState();
+
+  if (!list.length){
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.textContent = 'No hay resultados con estos criterios.';
+    wrap.appendChild(empty);
+    return;
+  }
 
   for (const r of list){
     const card = document.createElement('article'); 
@@ -1270,16 +1344,9 @@ function render(list){
     const permaWrap = document.createElement('div'); 
     permaWrap.className='perma';
 
-    const aPerma = document.createElement('a');
-    aPerma.href = permalinkFor(r);
-    aPerma.target = '_blank';
-    aPerma.rel = 'noopener noreferrer';
-    aPerma.className = 'permalink';
-    aPerma.title = 'Enlace directo a este recurso';
-    aPerma.textContent = '🔗 Enlace';
-
-    const bShare = shareBtn(permalinkFor(r));
-    permaWrap.append(aPerma, bShare);
+    const bPermalink = permalinkCopyBtn(r);
+    const bShare = shareBtn(r);
+    permaWrap.append(bPermalink, bShare);
     topl.append(h, permaWrap);
 
     const meta = document.createElement('div'); 
@@ -1316,63 +1383,67 @@ function render(list){
 
     const links = document.createElement('div'); 
     links.className='links';
-    let firstLink = '';
 
-    // Botones de acceso_* "normales"
+    // Jerarquía visual de accesos:
+    // 1) Acceso es la acción destacada.
+    // 2) REST y demás accesos conservan estilo normal.
+    // 3) Si no existe Acceso, Acceso de respaldo hereda el estilo destacado.
+    const hasMainAccess = ACCESS_FIELDS.some(af => isMainAccessField(af) && isURL(r.acceso[af]));
+
     for (const af of ACCESS_FIELDS){
       const href = r.acceso[af];
       if (isURL(href)){
-        links.appendChild(
-          linkBtn(href, prettyAccessLabel(af), af === 'rest')
-        );
-        if (!firstLink) firstLink = href;
+        const highlight = isMainAccessField(af) || (!hasMainAccess && isBackupAccessField(af));
+        links.appendChild(linkBtn(href, prettyAccessLabel(af), highlight));
       }
     }
 
-    // Botones accesoNOfiltro_*
+    // Botones accesoNOfiltro_*: nunca se convierten automáticamente en acción principal.
     for (const nf of ACCESS_NOFILTER_FIELDS){
       const href = r._accesoNoFiltro[nf];
       if (isURL(href)){
-        links.appendChild(
-          linkBtn(href, prettyAccessLabel(nf), nf === 'rest')
-        );
-        if (!firstLink) firstLink = href;
+        links.appendChild(linkBtn(href, prettyAccessLabel(nf), false));
       }
     }
 
-    // === NUEVO: botón "Ver en mapa (proximamente)" usando acceso_rest y respaldo ===
+    // El visor SOLO existe si la ficha declara al menos un campo REST.
     const svc = getServiceUrlsForRecord(r);
-    if (svc.primary || svc.backup){
+    if (svc.candidates.length){
+      const mapSlot = document.createElement('div');
+      mapSlot.className = 'map-slot';
+
       const mapBtn = document.createElement('button');
       mapBtn.type = 'button';
       mapBtn.className = 'btn';
-      mapBtn.textContent = 'Ver en mapa (proximamente)';
-      mapBtn.onclick = () => openMapForRecord(r);
+      mapBtn.textContent = 'Ver mapa';
+      mapBtn.onclick = () => toggleMapForRecord(r, mapSlot, mapBtn);
       links.appendChild(mapBtn);
 
-      // Si no había ningún enlace principal, usamos el REST principal para copiar
-      if (!firstLink && svc.primary){
-        firstLink = svc.primary;
-      }
+      card.append(topl, meta, p, links, mapSlot);
+    } else {
+      card.append(topl, meta, p, links);
     }
-
-    // Botón "Copiar enlace" (como ya tenías)
-    links.appendChild(copyBtn(firstLink));
-
-    card.append(topl, meta, p, links);
     wrap.appendChild(card);
   }
 }
 
 
+function isMainAccessField(name=''){
+  const n = deaccent(String(name).toLowerCase());
+  return n === 'principal' || n === 'acceso';
+}
+
+function isBackupAccessField(name=''){
+  const n = deaccent(String(name).toLowerCase());
+  return n === 'respaldo' || n === 'de_respaldo' || n === 'acceso_de_respaldo' || n === 'backup';
+}
+
 function prettyAccessLabel(name){
   const nice = name.replace(/_/g,' ');
-  // Labels familiares
   if(name==='rest') return 'REST';
-  if(name==='principal') return 'Abrir';
-  if(name==='secundario') return 'Secundario';
-  if(name==='respaldo') return 'Respaldo';
-  // Capitalizar por defecto
+  if(isMainAccessField(name)) return 'Acceso';
+  if(name==='secundario') return 'Acceso secundario';
+  if(isBackupAccessField(name)) return 'Acceso de respaldo';
   return capitalize(nice);
 }
 
@@ -1386,14 +1457,6 @@ function linkBtn(href, label, primary=false){
   return a;
 }
 
-function copyBtn(text){
-  const b = document.createElement('button');
-  b.className='btn'; b.textContent='Copiar enlace';
-  b.onclick = async ()=>{
-    try{ await navigator.clipboard.writeText(text||''); b.textContent='¡Copiado!'; setTimeout(()=>b.textContent='Copiar enlace', 1200);}catch(e){ b.textContent='Error'; setTimeout(()=>b.textContent='Copiar enlace', 1200); }
-  };
-  return b;
-}
 
 function runSearch(){
   const raw = document.getElementById('q').value;
@@ -1417,10 +1480,12 @@ function runSearch(){
   const go = document.getElementById('go');
   const q = document.getElementById('q');
   const sort = document.getElementById('sort');
+  const clearFilters = document.getElementById('clear-filters');
 
   go.onclick = runSearch;
   q.addEventListener('input', debounce(runSearch, 200));
   sort.onchange = runSearch;
+  if (clearFilters) clearFilters.onclick = clearAllFilters;
 
 
 
