@@ -124,6 +124,7 @@ CLASES / TIPOS
 
   
   
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@500&display=swap">
   <style>
     :root{
       --bg: #06150f;
@@ -261,9 +262,58 @@ CLASES / TIPOS
 
 
     
+  /* --- Navegación Lab geoespacial: mínima y sin fondo --- */
+  .site-nav{
+    position:fixed;
+    top:0;left:0;right:0;
+    z-index:3000;
+    display:flex;
+    align-items:center;
+    gap:16px;
+    padding:10px 18px 8px;
+    background:transparent;
+    pointer-events:none;
+  }
+  .site-nav a{
+    color:rgba(248,251,250,.72);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+    font-size:11px;
+    font-weight:500;
+    line-height:1;
+    letter-spacing:.02em;
+    text-decoration:none;
+    white-space:nowrap;
+    pointer-events:auto;
+    text-shadow:0 1px 5px rgba(0,0,0,.7);
+    transition:color .16s ease,opacity .16s ease;
+  }
+  .site-nav a:hover,.site-nav a:focus-visible{
+    color:#f8fbfa;
+    text-decoration:underline;
+    text-underline-offset:3px;
+  }
+  /* Despeja el encabezado sin cambiar su estructura ni contenido. */
+  header{padding-top:24px}
+  @media (max-width:760px){
+    .site-nav{
+      gap:12px;
+      padding:9px 9px 7px;
+      justify-content:flex-start;
+    }
+    .site-nav a{font-size:10px;letter-spacing:0}
+  }
+  @media (max-width:360px){
+    .site-nav{gap:9px}
+    .site-nav a{font-size:9px}
+  }
   </style>
 </head>
 <body>
+  <nav class="site-nav" aria-label="Navegación principal">
+    <a href="https://lab-geoespacial.com/">Lab geoespacial</a>
+    <a href="https://lab-geoespacial.com/amazonia">Amazonia</a>
+    <a href="https://lab-geoespacial.com/recursos">Recursos</a>
+  </nav>
   <header>
 
     <!-- PARA QUE AL OPRIMIR EN EL LOGO REGRESE AL TRONCO: enlace directo (temporal, es más robusto hacerlo en genérico) al tronco del repositorio -->
